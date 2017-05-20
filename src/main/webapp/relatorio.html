@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<!--
+To change this license header, choose License Headers in Project Properties.
+To change this template file, choose Tools | Templates
+and open the template in the editor.
+-->
+<html>
+    <head>
+        <title>TODO supply a title</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <script src="jquery.min.js" ></script>
+    </head>
+    <body>
+        <div>TODO write content</div>
+
+
+
+        <script>
+            xhr = new XMLHttpRequest();
+            var url = "http://localhost:8087/pontows/webresources/relatorio/pontoagrupado";
+            xhr.open("POST", url, true);
+            xhr.setRequestHeader("Content-type", "application/json");
+            xhr.onreadystatechange = function () {
+                if (xhr.readyState == 4 && xhr.status == 200) {
+//                    var type = xhr.getResponseHeader('Content-Type');
+//                    alert(type);
+//                    var blob = new Blob([xhr.response], { type: type });
+//                    var link = document.createElement('a');
+//                    link.href = window.URL.createObjectURL(blob);
+//                    link.download = "test-file.pdf";
+//                    link.click();
+
+                    a = document.createElement('a');
+                    a.href = window.URL.createObjectURL(xhr.response);
+                    a.download = "test-file.pdf";
+                    a.style.display = 'none';
+                    document.body.appendChild(a);
+                    a.click();
+                }
+            }
+            var data = JSON.stringify({"data_inicio": "01/11/2016", "data_fim": "05/11/2016"});
+            xhr.responseType = 'blob';
+            xhr.send(data);
+        </script>
+
+    </body>
+</html>

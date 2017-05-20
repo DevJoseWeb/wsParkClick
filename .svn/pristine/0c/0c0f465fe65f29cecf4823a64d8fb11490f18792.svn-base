@@ -1,0 +1,275 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package br.gov.ce.saude.ponto.servico;
+
+import br.gov.ce.autenticacao.service.AbstractFacade;
+import br.gov.ce.saude.autenticacao.exception.MessageInfo;
+import br.gov.ce.saude.autenticacao.exception.ServiceException;
+import br.gov.ce.saude.ponto.entidade.FuncionarioContrato;
+import br.gov.ce.saude.ponto.entidade.Hierarquia;
+import br.gov.ce.saude.ponto.entidade.Organograma;
+import br.gov.ce.saude.ponto.vo.HierarquiaVO;
+import br.gov.ce.saude.ponto.vo.OrganogramaVO;
+import br.gov.ce.saude.ponto.vo.UsuarioVO;
+import java.math.BigInteger;
+import java.util.List;
+import javax.ejb.Stateless;
+import javax.ejb.TransactionAttribute;
+import static javax.ejb.TransactionAttributeType.NOT_SUPPORTED;
+import javax.persistence.Query;
+import javax.ws.rs.Consumes;
+import javax.ws.rs.DELETE;
+import javax.ws.rs.GET;
+import javax.ws.rs.POST;
+import javax.ws.rs.PUT;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
+import javax.ws.rs.Produces;
+
+/**
+ *
+ * @author joao
+ */
+@Stateless
+@Path("hierarquia")
+public class HierarquiaFacadeREST extends AbstractFacade<Hierarquia, ServiceException> {
+    
+    public HierarquiaFacadeREST() {
+        super(Hierarquia.class);
+    }
+    
+    @PUT
+    @Override
+    @Consumes({"application/json"})
+    @Produces({"application/json"})
+    public Hierarquia edit(Hierarquia entity) {
+        return super.edit(entity);
+    }
+
+    /**
+     * Retorna se o usuario visualiza o usuario
+     *
+     * @param cpf
+     * @param idUsuario
+     */
+    @TransactionAttribute(NOT_SUPPORTED)
+    @GET
+    @Path("buscausuariocpf/{cpf}/{idUsuario}")
+    @Produces({"application/json"})
+    public UsuarioVO buscaUsuarioPorCpf(@PathParam("cpf") String cpf,
+            @PathParam("idUsuario") BigInteger idUsuario) {
+        String consulta = "SELECT pessoa_pk, nome, cpf, "
+                + " (SELECT t_usuario.login FROM e_gestorws.t_usuario WHERE t_usuario.pessoa_fk = pessoa_pk) as login, \n"
+                + " (SELECT t_usuario.usuario_pk FROM e_gestorws.t_usuario WHERE t_usuario.pessoa_fk = pessoa_pk) as usuario_pk\n"
+                + "FROM \n"
+                + "(SELECT pessoa_pk, nome, cpf\n"
+                + "FROM\n"
+                + "(SELECT \n"
+                + "  t_pessoa.pessoa_pk, \n"
+                + "  t_pessoa.nome, \n"
+                + "  t_pessoa.cpf \n"
+                //+ "  t_funcionario_contrato.matricula\n"
+                + "FROM \n"
+                + "  e_pontows.t_funcionario_contrato, \n"
+                + "  e_base.t_pessoa\n"
+                + "WHERE \n"
+                + "  t_funcionario_contrato.pessoa_fk = t_pessoa.pessoa_pk AND \n"
+                + "  t_funcionario_contrato.unidade_organica_fk in \n"
+                + "  ( \n"
+                + "  SELECT \n"
+                + "  t_unidade_organica_item.organograma_fk\n"
+                + "FROM \n"
+                + "  e_pontows.t_funcionario_contrato, \n"
+                + "  e_pontows.t_hierarquia, \n"
+                + "  e_pontows.t_unidade_organica, \n"
+                + "  e_pontows.t_unidade_organica_item\n"
+                + "WHERE \n"
+                + "  t_funcionario_contrato.funcionario_contrato_pk = t_hierarquia.funcionario_contrato_fk AND\n"
+                + "  t_hierarquia.organograma_fk = t_unidade_organica.organograma_fk AND\n"
+                + "  t_unidade_organica.unidade_organica_pk = t_unidade_organica_item.unidade_organica_fk AND\n"
+                + "  t_hierarquia.tipo in ('G', 'U') AND \n"
+                + "  t_funcionario_contrato.pessoa_fk = :idUsuario\n"
+                + "  )) t1\n"
+                + "UNION\n"
+                + "(SELECT \n"
+                + "  t_pessoa.pessoa_pk, \n"
+                + "  t_pessoa.nome, \n"
+                + "  t_pessoa.cpf \n"
+                //+ "  t_funcionario_contrato.matricula  \n"
+                + "FROM \n"
+                + "  e_pontows.t_funcionario_contrato, \n"
+                + "  e_base.t_pessoa\n"
+                + "WHERE \n"
+                + "  t_funcionario_contrato.pessoa_fk = t_pessoa.pessoa_pk AND \n"
+                + "  t_funcionario_contrato.unidade_funcional_fk in \n"
+                + "  (\n"
+                + "   SELECT \n"
+                + "  t_hierarquia.organograma_fk\n"
+                + "FROM \n"
+                + "  e_pontows.t_hierarquia, \n"
+                + "  e_pontows.t_funcionario_contrato\n"
+                + "WHERE \n"
+                + "  t_funcionario_contrato.funcionario_contrato_pk = t_hierarquia.funcionario_contrato_fk AND\n"
+                + "  t_hierarquia.tipo = 'S' AND \n"
+                + "  t_funcionario_contrato.pessoa_fk = :idUsuario\n"
+                + "  ))\n"
+                + "ORDER BY 1) U\n"
+                + "WHERE cpf = :cpf";
+        
+        Query query = getEntityManager().
+                createNativeQuery(consulta, "usuarioHierarquia");
+        
+        query.setParameter("cpf", cpf);
+        query.setParameter("idUsuario", idUsuario);
+        
+        UsuarioVO usuarioVO = null;
+        try {
+            usuarioVO = (UsuarioVO) query.getSingleResult();
+        } catch (Exception e) {
+            getBusiness().addErrorMessage(null, "Usuário não encontrado, ou você não tem permissão para visualizá-lo.");
+            getBusiness().lancarException();
+        }
+        
+        return usuarioVO;
+    }
+
+    /**
+     * Retorna unidades visualizas pelo usuario
+     *
+     * @param cpf
+     * @param idUsuario
+     */
+    @TransactionAttribute(NOT_SUPPORTED)
+    @GET
+    @Path("buscaunidadeusuario/{idUsuario}")
+    @Produces({"application/json"})
+    public List<OrganogramaVO> buscaUnidadePorUsuario(@PathParam("idUsuario") BigInteger idUsuario) {
+        
+        String consulta = "select \n"
+                + "  organograma_pk, \n"
+                + "  sigla, \n"
+                + "  nome_org\n"
+                + "FROM\n"
+                + "(SELECT \n"
+                + "  t_organograma.organograma_pk, \n"
+                + "  t_organograma.sigla, \n"
+                + "  t_organograma.nome_org\n"
+                + "FROM \n"
+                + "  e_base.t_organograma, \n"
+                + "  e_pontows.t_funcionario_contrato, \n"
+                + "  e_pontows.t_hierarquia, \n"
+                + "  e_pontows.t_unidade_organica, \n"
+                + "  e_pontows.t_unidade_organica_item\n"
+                + "WHERE \n"
+                + "  t_organograma.organograma_pk = t_unidade_organica_item.organograma_fk AND\n"
+                + "  t_funcionario_contrato.funcionario_contrato_pk = t_hierarquia.funcionario_contrato_fk AND\n"
+                + "  t_hierarquia.organograma_fk = t_unidade_organica.organograma_fk AND\n"
+                + "  t_unidade_organica.unidade_organica_pk = t_unidade_organica_item.unidade_organica_fk AND\n"
+                + "  t_hierarquia.tipo in ('G', 'U') AND \n"
+                + "  t_funcionario_contrato.pessoa_fk = :idUsuario) t1\n"
+                + "  UNION  \n"
+                + "(SELECT \n"
+                + "  t_organograma.organograma_pk, \n"
+                + "  t_organograma.sigla, \n"
+                + "  t_organograma.nome_org\n"
+                + "FROM \n"
+                + "  e_base.t_organograma, \n"
+                + "  e_pontows.t_hierarquia, \n"
+                + "  e_pontows.t_funcionario_contrato\n"
+                + "WHERE \n"
+                + "  t_organograma.organograma_pk = t_hierarquia.organograma_fk AND\n"
+                + "  t_funcionario_contrato.funcionario_contrato_pk = t_hierarquia.funcionario_contrato_fk AND\n"
+                + "  t_hierarquia.tipo = 'S' AND \n"
+                + "  t_funcionario_contrato.pessoa_fk = :idUsuario) "
+                + "  order by 1";
+        
+        Query query = getEntityManager().
+                createNativeQuery(consulta, "organogramaVO");
+        
+        query.setParameter("idUsuario", idUsuario);
+        List<OrganogramaVO> listOrganogramaVO = (List<OrganogramaVO>) query.getResultList();
+        
+        return listOrganogramaVO;
+    }
+
+    /**
+     * Retorna unidades visualizas pelo usuario
+     *
+     * @param idUsuario
+     */
+    @TransactionAttribute(NOT_SUPPORTED)
+    @GET
+    @Path("listahierarquias/{idUsuario}")
+    @Produces({"application/json"})
+    public List<HierarquiaVO> listaHierarquias(@PathParam("idUsuario") BigInteger idUsuario) {
+        String consulta = "SELECT \n"
+                + "  t_hierarquia.hierarquia_pk, \n"
+                + "  t_organograma.organograma_pk, \n"
+                + "  t_organograma.sigla, \n"
+                + "  t_organograma.nome_org, \n"
+                + "  t_hierarquia.tipo\n"
+                + "FROM \n"
+                + "  e_base.t_organograma, \n"
+                + "  e_pontows.t_hierarquia, \n"
+                + "  e_pontows.t_funcionario_contrato\n"
+                + "WHERE \n"
+                + "  t_hierarquia.organograma_fk = t_organograma.organograma_pk AND\n"
+                + "  t_funcionario_contrato.funcionario_contrato_pk = t_hierarquia.funcionario_contrato_fk AND\n"
+                + "  t_funcionario_contrato.pessoa_fk = :idUsuario";
+        
+        Query query = getEntityManager().createNativeQuery(consulta, "hierarquiaVO");
+        //Query query = getEntityManager().createNativeQuery(consulta);
+
+        query.setParameter("idUsuario", idUsuario);
+        List<HierarquiaVO> listOrganogramaVO = (List<HierarquiaVO>) query.getResultList();
+        //List listOrganogramaVO =  query.getResultList();
+
+        return listOrganogramaVO;
+        
+    }
+    
+    @POST
+    @Consumes({"application/json"})
+    @Produces({"application/json"})
+    @Override
+    public Hierarquia create(Hierarquia entity) {
+        
+        Query queryContrato = getEntityManager().
+                createQuery("FROM FuncionarioContrato WHERE funcionarioFk.id =:idUsuario");
+        queryContrato.setParameter("idUsuario", entity.getIdUsuario());
+        FuncionarioContrato funcionarioContrato = (FuncionarioContrato) queryContrato.setMaxResults(1).getSingleResult();
+        
+        Query queryOrganograma = getEntityManager().
+                createQuery("FROM Organograma WHERE id =:idOrganograma");
+        queryOrganograma.setParameter("idOrganograma", entity.getIdOrganograma());
+        Organograma organograma = (Organograma) queryOrganograma.getSingleResult();
+        
+        Hierarquia hierarquia = new Hierarquia();
+        hierarquia.setFuncionarioContrato(funcionarioContrato);
+        hierarquia.setOrganogramaFk(organograma);
+        hierarquia.setTipo(entity.getTipo());
+        hierarquia.setAtivo(Boolean.TRUE);
+        
+        return super.create(hierarquia);
+    }
+    
+    @GET
+    @Path("get/{idhierarquia}")
+    @Produces({"application/json"})
+    public Hierarquia find(@PathParam("idhierarquia") BigInteger idhierarquia) {
+        return super.find(idhierarquia);
+    }
+    
+    @DELETE
+    @Path("{id}")
+    @Produces({"application/json"})
+    public MessageInfo remove(@PathParam("id") BigInteger id) {
+        
+        super.remove(super.find(id));
+        return new MessageInfo(null, "Item removido.");
+    }
+    
+}

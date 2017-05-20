@@ -1,0 +1,189 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package br.gov.ce.saude.ponto.servico.relatorio;
+
+import br.gov.ce.autenticacao.service.AbstractFacade;
+import br.gov.ce.saude.autenticacao.exception.ServiceException;
+import br.gov.ce.saude.ponto.entidade.BatidaRel;
+import br.gov.ce.saude.ponto.vo.HorasTrabalhadaVO;
+import br.gov.ce.saude.ponto.vo.PaginacaoVO;
+import java.math.BigInteger;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.List;
+import javax.ejb.Stateless;
+import javax.ejb.TransactionAttribute;
+import static javax.ejb.TransactionAttributeType.NOT_SUPPORTED;
+import javax.persistence.Query;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
+import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
+
+/**
+ *
+ * @author esmayktillesse
+ */
+@Stateless
+@Path("horatrabalhada")
+public class RelatorioHoraTrabalhadaFacadeREST extends AbstractFacade<BatidaRel, ServiceException> {
+
+    public RelatorioHoraTrabalhadaFacadeREST() {
+        super(BatidaRel.class);
+    }
+
+    @TransactionAttribute(NOT_SUPPORTED)
+    @GET
+    @Path("test/{organica}/{funcional}/{dia}/{mes}/{ano}")
+    @Produces({"application/json"})
+    public PaginacaoVO horasTrabalhada(@PathParam("funcional") BigInteger funcional,
+            @PathParam("organica") BigInteger organica,
+            @PathParam("dia") String dia,
+            @PathParam("mes") String mes,
+            @PathParam("ano") String ano,
+            @QueryParam("empresa") BigInteger empresa,
+            @QueryParam("funcao") BigInteger funcao,
+            @QueryParam("start") int start, @QueryParam("length") int length,
+            @QueryParam("search[value]") String nome, @QueryParam("draw") int draw) throws ParseException {
+
+        SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
+        String dt = dia + "/" + mes + "/" + ano;
+        Date batida = sdf.parse(dt);
+        PaginacaoVO paginacaoVO = new PaginacaoVO();
+        Query queryTodosRegistros = null;
+
+        String consulta = "SELECT  \n"
+                + "     p.nome,\n"
+                + "     t_funcao.descricao funcao,\n"
+                + "     t_organograma.sigla AS setor,\n"
+                + "     TO_CHAR(batida_1, 'dd-MM-yyyy') AS data,\n"
+                + "     (SELECT EXTRACT( DOW FROM batida_1)+1) dia_semana,\n"
+                + "     h.descricao as horario,\n"
+                + "     batida_1, \n"
+                + "     batida_2,\n"
+                + "\n"
+                + "     CASE  WHEN (SELECT EXTRACT( DOW FROM batida_1)+1) IN (1,7) THEN 'FDS'\n"
+                + "           ELSE 'SEMANA'\n"
+                + "     END AS tipo_plantao,\n"
+                + "\n"
+                + "     CASE  WHEN (horas_batida >= horas_cumprir)\n"
+                + "           THEN horas_cumprir\n"
+                + "           WHEN horas_batida IS NULL \n"
+                + "           THEN '00:00:00'\n"
+                + "           ELSE horas_batida\n"
+                + "     END AS hora,\n"
+                + "\n"
+                + "     CASE  WHEN TO_CHAR(batida_1,  'HH24:mm:ss') < '19:00:00'\n"
+                + "           THEN 'DIURNO' \n"
+                + "           WHEN TO_CHAR(batida_1,  'HH24:mm:ss') >= '19:00:00'\n"
+                + "           THEN 'NOTURNO'\n"
+                + "           ELSE 'AUSENTE'\n"
+                + "     END AS plantao\n"
+                + "     \n"
+                + "FROM t_batida_rel_escala e\n"
+                + "LEFT JOIN t_escala_item ei ON (escala_item_fk = escala_item_pk),\n"
+                + "     t_funcionario_horario fh,\n"
+                + "     t_funcionario_contrato fc\n"
+                + "LEFT JOIN t_funcao ON (funcao_fk = funcao_pk),\n"
+                + "     e_base.t_pessoa p\n"
+                + "LEFT JOIN e_base.t_empresa ON (empresa_fk = empresa_pk),\n"
+                + "     t_horario h,\n"
+                + "     e_base.t_organograma\n"
+                + "              \n"
+                + "WHERE \n"
+                + "    funcionario_horario_fk = funcionario_horario_pk AND\n"
+                + "    t_organograma.organograma_pk = fc.unidade_funcional_fk AND\n"
+                + "    funcionario_contrato_fk = funcionario_contrato_pk AND\n"
+                + "    fc.pessoa_fk = p.pessoa_pk AND\n"
+                + "    fh.horario_fk = h.horario_pk AND\n"
+                + "    batida_1 >=:batida";
+
+        if ((organica.compareTo(BigInteger.ZERO) != 0)) {
+            consulta += "  AND  fc.unidade_organica_fk = :organica \n";
+        }
+
+        if ((funcional.compareTo(BigInteger.ZERO) != 0)) {
+            consulta += "  AND  fc.uunidade_funcional_fk = :funcional \n";
+        }
+
+        if ((funcao != null)) {
+            consulta += "  AND  t_funcao.funcao_pk = :funcao \n";
+        } else {
+            consulta += "  AND  t_funcao.funcao_pk  IS NOT NULL \n";
+        }
+
+        if ((empresa != null)) {
+            consulta += "  AND  t_empresa.empresa_pk = :empresa \n";
+        } else {
+            consulta += "  AND  t_empresa.empresa_pk  IS NOT NULL \n";
+        }
+
+        if (nome != null && !nome.equals("")) {
+            consulta += "  AND p.nome LIKE :nome";
+        }
+
+        consulta += " ORDER BY\n"
+                + "  p.nome ASC";
+
+        Query query = getEntityManager().createNativeQuery(consulta, "horasTrabalhada");
+
+        query.setParameter("batida", batida);
+
+        if ((organica.compareTo(BigInteger.ZERO) != 0)) {
+            query.setParameter("organica", organica);
+        }
+        if ((funcional.compareTo(BigInteger.ZERO) != 0)) {
+            query.setParameter("funcional", funcional);
+        }
+        if ((funcao != null)) {
+            query.setParameter("funcao", funcao);
+        }
+        if ((empresa != null)) {
+            query.setParameter("empresa", empresa);
+        }
+        if (nome != null && !nome.equals("")) {
+            query.setParameter("nome", "%" + nome.toUpperCase() + "%");
+        }
+
+        queryTodosRegistros = getEntityManager().createNativeQuery("SELECT COUNT(*) FROM (" + consulta + ") F ");
+
+        queryTodosRegistros.setParameter("batida", batida);
+
+        if ((organica.compareTo(BigInteger.ZERO) != 0)) {
+            queryTodosRegistros.setParameter("organica", organica);
+        }
+        if ((funcional.compareTo(BigInteger.ZERO) != 0)) {
+            queryTodosRegistros.setParameter("funcional", funcional);
+        }
+        if ((funcao != null)) {
+            queryTodosRegistros.setParameter("funcao", funcao);
+        }
+        if ((empresa != null)) {
+            queryTodosRegistros.setParameter("empresa", empresa);
+        }
+        if (nome != null && !nome.equals("")) {
+            queryTodosRegistros.setParameter("nome", "%" + nome.toUpperCase() + "%");
+        }
+
+        query.setMaxResults(length);
+        query.setFirstResult(start);
+
+        List<HorasTrabalhadaVO> data = query.getResultList();
+        //List a = query.getResultList();
+
+        BigInteger filtrados = (BigInteger) queryTodosRegistros.getSingleResult();
+
+        paginacaoVO.setDraw(draw++);
+        paginacaoVO.setRecordsTotal(filtrados.intValue()); //paginacaoVO.setRecordsTotal(recordsTotal.size());
+        paginacaoVO.setRecordsFiltered(filtrados.intValue()); //paginacaoVO.setRecordsFiltered(recordsFiltered.size());
+        paginacaoVO.setData(data);
+
+        return paginacaoVO;
+    }
+
+}

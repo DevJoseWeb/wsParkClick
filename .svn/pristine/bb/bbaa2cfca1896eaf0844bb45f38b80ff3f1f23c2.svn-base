@@ -1,0 +1,349 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package br.gov.ce.saude.ponto.servico;
+
+import br.gov.ce.autenticacao.service.AbstractFacade;
+import br.gov.ce.saude.autenticacao.exception.ServiceException;
+import br.gov.ce.saude.ponto.entidade.Funcionario;
+import br.gov.ce.saude.ponto.vo.BatePontoVO;
+import br.gov.ce.saude.ponto.vo.DadosUsuario;
+import br.gov.ce.saude.ponto.vo.FuncionarioVO;
+import java.math.BigInteger;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import javax.ejb.Stateless;
+import javax.persistence.Query;
+import javax.ws.rs.Consumes;
+import javax.ws.rs.DELETE;
+import javax.ws.rs.GET;
+import javax.ws.rs.POST;
+import javax.ws.rs.PUT;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
+import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
+
+/**
+ *
+ * @author esmayktillesse
+ */
+@Stateless
+@Path("funcionario")
+public class FuncionarioFacadeREST extends AbstractFacade<Funcionario, ServiceException> {
+
+    public FuncionarioFacadeREST() {
+        super(Funcionario.class);
+    }
+
+    @POST
+    @Consumes({"application/json"})
+    @Produces({"application/json"})
+    @Override
+    public Funcionario create(Funcionario entity) {
+        return super.create(entity);
+    }
+
+    @PUT
+    @Override
+    @Consumes({"application/json"})
+    @Produces({"application/json"})
+    public Funcionario edit(Funcionario entity) {
+        return super.edit(entity);
+    }
+
+    @DELETE
+    @Path("{id}")
+    public void remove(@PathParam("id") BigInteger id) {
+        super.remove(super.find(id));
+    }
+
+    @GET
+    @Override
+    @Produces({"application/json"})
+    public List<Funcionario> findAll() {
+        List<Funcionario> lista = super.findAll();
+        return lista;
+    }
+
+    @GET
+    @Path("{id}")
+    @Produces({"application/json"})
+    public Funcionario getFuncionario(@PathParam("id") BigInteger id) {
+        return super.find(id);
+    }
+
+    @GET
+    @Path("cpf/{cpf}")
+    @Produces({"application/json"})
+    public List<Funcionario> buscaCpf(@PathParam("cpf") String cpf) {
+        Funcionario funcionario = new Funcionario();
+        funcionario.setCpf(cpf);
+        List<Funcionario> buscaCpf = getBusiness().listarPorExemplo(funcionario, 0);
+
+        return buscaCpf;
+    }
+
+    @GET
+    @Path("filtro/{idPessoa}")
+    @Produces({"application/json"})
+    public FuncionarioVO findRange(@QueryParam("start") int start,
+            @QueryParam("length") int length, @QueryParam("search[value]") String nome,
+            @QueryParam("draw") int draw, @PathParam("idPessoa") BigInteger idPessoa) {
+        FuncionarioVO funcionarioVO = new FuncionarioVO();
+        buscaFuncionario(nome, start, length, draw, funcionarioVO, idPessoa);
+
+        return funcionarioVO;
+    }
+
+    @GET
+    @Path("buscaFuncPorUnidade/{idSetor}")
+    @Produces({"application/json"})
+    public BatePontoVO buscaFuncPorUnidade(@PathParam("idSetor") BigInteger idSetor,
+            @QueryParam("start") int start,
+            @QueryParam("length") int length,
+            @QueryParam("search[value]") String nome,
+            @QueryParam("draw") int draw) {
+        BatePontoVO batePontoVO = new BatePontoVO();
+        buscaFuncPorUnidade(nome, idSetor, start, length, draw, batePontoVO);
+
+        return batePontoVO;
+    }
+
+    @GET
+    @Path("buscaFuncPorUnidade")
+    @Produces({"application/json"})
+    public BatePontoVO buscaFuncPorUnidade(@QueryParam("start") int start,
+            @QueryParam("length") int length,
+            @QueryParam("search[value]") String nome,
+            @QueryParam("draw") int draw) {
+        BatePontoVO batePontoVO = new BatePontoVO();
+        BigInteger idSetor = null;
+        buscaFuncPorUnidade(nome, idSetor, start, length, draw, batePontoVO);
+
+        return batePontoVO;
+    }
+
+    @GET
+    @Path("count")
+    @Produces("text/plain")
+    public String countREST() {
+        return String.valueOf(super.count());
+    }
+
+    private void buscaFuncionario(String nome, int start, 
+            int length, int draw, FuncionarioVO funcionarioVO, 
+            BigInteger idPessoa) {
+        String consultaGlobal = "Select count(*) from Hierarquia h \n"
+                + " where h.tipo = 'G' and \n"
+                + " h.funcionarioContrato.funcionarioFk.id = :pessoa ";
+        String cons = "SELECT f FROM Funcionario f\n";
+        String count = "SELECT count(*) FROM Funcionario f\n";
+        
+        Query query1 = getEntityManager().createQuery(consultaGlobal);
+        query1.setParameter("pessoa", idPessoa);
+        Long qtdGlobal = (Long) query1.getSingleResult(); 
+        String consulta;
+        if (qtdGlobal > 0) {
+          consulta = "WHERE 1= 1 and (f.id in\n"
+                + "(SELECT fc.funcionarioFk.id\n"
+                + "FROM FuncionarioContrato fc) or\n"
+                + " (f.id not in\n"
+                + "(SELECT fc1.funcionarioFk.id\n"
+                + "FROM FuncionarioContrato fc1))) \n";
+        } else {
+          consulta = "WHERE 1= 1 and (f.id in\n"
+                + "(SELECT fc.funcionarioFk.id\n"
+                + "FROM FuncionarioContrato fc \n"
+                + "where (fc.unidadeOrganicaFk.organogramaPk in (select h.organogramaFk.organogramaPk \n"
+                +"                                                 from Hierarquia h \n"                
+                +"                                                where h.tipo = 'U' and \n"
+                + "h.funcionarioContrato.funcionarioFk.id = :pessoa)) or \n "
+                + "      (fc.unidadeFuncionalFk.organogramaPk in (select h1.organogramaFk.organogramaPk \n" 
+                +"                                               from Hierarquia h1 \n" 
+                +"                                                where h1.tipo = 'S' and \n" 
+                +"h1.funcionarioContrato.funcionarioFk.id = :pessoa))  \n" 
+                + ") or\n"
+                + " (f.id not in\n"
+                + "(SELECT fc1.funcionarioFk.id\n"
+                + "FROM FuncionarioContrato fc1))) \n";
+        }
+        
+        // Consulta itens total sem filtro
+  //      int recordsTotal; //= (Long) queryTodosRegistros.getSingleResult(); // qtd de itens total
+  //      int recordsFilter; // = recordsTotal;
+
+        if (nome != null && !nome.equals("")) {
+            consulta += "AND f.nome LIKE :nome";
+        }
+        //obter os dados filtrados
+        Query query = getEntityManager().createQuery(count + consulta);
+        if (qtdGlobal == 0) {
+            query.setParameter("pessoa", idPessoa);
+        }  
+
+        if (nome != null && !nome.equals("")) {
+            query.setParameter("nome", "%" + nome.toUpperCase() + "%");
+        }
+        
+        Long recordsTotal = (Long) query.getSingleResult();
+
+
+        consulta += " ORDER BY\n"
+                + "f.nome";              
+        //obter a quantidade geral de registros        
+        query = getEntityManager().createQuery(cons + consulta);
+        if (qtdGlobal == 0) {
+            query.setParameter("pessoa", idPessoa);
+        }  
+
+        if (nome != null && !nome.equals("")) {
+            query.setParameter("nome", "%" + nome.toUpperCase() + "%");
+        }
+          
+        
+        
+        query.setMaxResults(length);
+        query.setFirstResult(start);
+
+        List<Funcionario> data = query.getResultList();
+        
+        //Integer recordsFilter = data.size(); // qtd de itens total
+
+        funcionarioVO.setDraw(draw++);
+        funcionarioVO.setRecordsTotal(recordsTotal.intValue());
+        funcionarioVO.setRecordsFiltered(recordsTotal.intValue());
+        funcionarioVO.setData(data);
+
+    }
+
+    private void buscaFuncPorUnidade(String nome, BigInteger idSetor, int start, int length, int draw, BatePontoVO batePontoVO) {
+
+        String consulta = "SELECT *\n"
+                + "FROM \n"
+                + "e_pontows.vm_func_por_unidade\n"
+                + "WHERE 1 = 1";
+
+        String todosRegistros = "SELECT COUNT(*)\n"
+                + "FROM \n"
+                + "e_pontows.vm_func_por_unidade\n"
+                + "WHERE 1 = 1";
+
+        BigInteger recordsFilter = null;
+
+        if (nome != null && !nome.equals("")) {
+            consulta += " AND nome LIKE :nome";
+            todosRegistros += " AND nome LIKE :nome";
+        }
+
+        Integer[] funcional = {
+            12001, 12002, 12005, 12006, 12009, 12010, 12011, 12013, 12014, 12023,
+            12029, 12030, 12031, 12033, 12034, 12035, 12036, 12038, 12039, 12041,
+            12044, 12045, 12046, 12047, 12049, 12052, 12053, 12056, 12059, 12061,
+            12062, 12065, 12068, 12071, 12072, 12073, 12074, 12075, 12524, 12529,
+            12546, 12547, 12548, 12550, 12551, 12554, 12555, 12556, 12557, 12558,
+            12559, 12567, 12568, 12573, 12574, 16467, 16501, 16502, 12086, 12097,
+            12102, 12107, 12122, 12127, 12140, 12164, 12169, 12174, 12184, 15909,
+            15394, 15806, 15856, 15693, 15748, 15569, 15460, 14731, 14677, 14348,
+            14391, 15158, 13267, 13314, 12921, 16470, 12026, 12027, 12028, 12196};
+
+        ArrayList<Integer> listaFuncional = new ArrayList<>(Arrays.asList(funcional));
+
+        Integer[] organograma = {
+            12000, 12076, 12111, 12116, 12132, 12145, 12153, 12158, 12179, 12190,
+            12205, 12213, 12216, 12219, 12220, 12221, 12228, 12231, 12234, 12237,
+            12246, 12256, 12263, 12324, 12351, 12370, 12416, 12455, 12528, 12531,
+            12544, 12545, 12569, 12470};
+
+        ArrayList<Integer> listaOrganograma = new ArrayList<>(Arrays.asList(organograma));
+
+        boolean achou = false;
+        int test = 0;
+        if (idSetor != null) {
+            for (Integer ltf : listaFuncional) {
+                if (ltf.equals(idSetor.intValue())) {
+                    achou = true;
+                    test = 1;
+                    break;
+                }
+            }
+            if (achou == false) {
+
+                for (Integer lto : listaOrganograma) {
+                    if (lto.equals(idSetor.intValue())) {
+                        achou = true;
+                        test = 2;
+                        break;
+                    }
+                }
+            }
+            if (idSetor != null && test == 1) {
+                consulta += " AND idSetor = :idSetor";
+                todosRegistros += " AND idSetor = :idSetor";
+            }
+            if (idSetor != null && test == 2) {
+                consulta += " AND id_unidade = :idSetor";
+                todosRegistros += " AND id_unidade = :idSetor";
+            }
+            consulta += " ORDER BY\n"
+                    + "nome";
+        }
+        Query query = getEntityManager().createNativeQuery(consulta, "buscaFuncPorUnidade");
+        Query queryTodosRegistros = getEntityManager().createNativeQuery(todosRegistros);
+
+        if (nome != null && !nome.equals("")) {
+            query.setParameter("nome", "%" + nome.toUpperCase() + "%");
+            queryTodosRegistros.setParameter("nome", "%" + nome.toUpperCase() + "%");
+        }
+        if (idSetor != null) {
+            query.setParameter("idSetor", idSetor);
+            queryTodosRegistros.setParameter("idSetor", idSetor);
+        }
+        Object recordsTotal = queryTodosRegistros.getSingleResult(); // qtd de itens total
+        recordsFilter = (BigInteger) recordsTotal;
+
+        query.setMaxResults(length);
+        query.setFirstResult(start);
+
+        List<BatePontoVO> data = query.getResultList();
+
+        batePontoVO.setDraw(draw++);
+        batePontoVO.setRecordsTotal(recordsFilter.intValue());
+        batePontoVO.setRecordsFiltered(recordsFilter.intValue());
+        batePontoVO.setData(data);
+    }
+
+    
+    @GET
+    @Path("dadosusuario/{funcContrato}")
+    @Produces({"application/json"})
+    public DadosUsuario listaDadosUsuario(@PathParam("funcContrato") BigInteger funcContrato) {
+        String consulta = "SELECT \n"
+                + "  t_funcao.descricao AS cargo, \n"
+                + "  t_vinculo.descricao AS vinculo, \n"
+                + "  organica.sigla AS unid_org, \n"
+                + "  funcional.sigla AS unid_func, \n"
+                + "  t_pessoa.nome, \n"
+                + "  t_funcionario_contrato.matricula\n"
+                + "FROM \n"
+                + "  (e_pontows.t_funcionario_contrato LEFT JOIN e_pontows.t_vinculo ON t_vinculo.vinculo_pk = t_funcionario_contrato.vinculo_fk)   \n"
+                + "  LEFT JOIN e_pontows.t_funcao ON t_funcao.funcao_pk = t_funcionario_contrato.funcao_fk \n"
+                + "  LEFT JOIN e_base.t_organograma funcional ON funcional.organograma_pk = t_funcionario_contrato.unidade_funcional_fk\n"
+                + "  LEFT JOIN e_base.t_organograma organica ON organica.organograma_pk = t_funcionario_contrato.unidade_organica_fk, \n"
+                + "  e_base.t_pessoa\n"
+                + "WHERE \n"
+                + "  t_funcionario_contrato.pessoa_fk = t_pessoa.pessoa_pk AND\n"
+                + "  t_funcionario_contrato.funcionario_contrato_pk = :funcContrato";
+
+        Query query = getEntityManager().
+                createNativeQuery(consulta, "buscaDadosUsuario");
+        query.setParameter("funcContrato", funcContrato);        
+
+        DadosUsuario dadosUsuari = (DadosUsuario)query.getSingleResult();
+
+        return dadosUsuari;
+    }
+}

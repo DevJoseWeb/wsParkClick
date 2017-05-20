@@ -1,0 +1,79 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package br.gov.ce.saude.ponto.servico;
+
+import java.util.Set;
+import javax.ws.rs.core.Application;
+
+/**
+ *
+ * @author joao
+ */
+@javax.ws.rs.ApplicationPath("webresources")
+public class ApplicationConfig extends Application {
+
+    @Override
+    public Set<Class<?>> getClasses() {
+        Set<Class<?>> resources = new java.util.HashSet<>();
+        // following code can be used to customize Jersey 1.x JSON provider:
+        try {
+            Class jacksonProvider = Class.forName("org.codehaus.jackson.jaxrs.JacksonJsonProvider");
+            resources.add(jacksonProvider);
+        } catch (ClassNotFoundException ex) {
+            java.util.logging.Logger.getLogger(getClass().getName()).log(java.util.logging.Level.SEVERE, null, ex);
+        }
+        addRestResourceClasses(resources);
+        return resources;
+    }
+
+    /**
+     * Do not modify addRestResourceClasses() method.
+     * It is automatically populated with
+     * all resources defined in the project.
+     * If required, comment out calling this method in getClasses().
+     */
+    private void addRestResourceClasses(Set<Class<?>> resources) {
+        resources.add(br.gov.ce.auditoriaws.filtro.WebserviceCorsFilter.class);
+        resources.add(br.gov.ce.saude.autenticacao.exception.ExceptionMapperImpl.class);        
+        resources.add(br.gov.ce.saude.ponto.autenticacao.AutenticaPontowsRest.class);
+        resources.add(br.gov.ce.saude.ponto.servico.AcessoFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.AfastamentoFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.ArquivoFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.BatidaRelFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.CargaHorariaFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.ClienteFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.EmpresaFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.EscalaFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.EscalaItemFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.FeriadoFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.FuncaoFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.FuncionarioContratoFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.FuncionarioFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.FuncionarioHorarioFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.GeradorFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.GrauInstrucaoFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.HierarquiaFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.HorarioFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.JustificativaFileUploadService.class);
+        resources.add(br.gov.ce.saude.ponto.servico.LegendaEscalaFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.OcorrenciaFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.OrganogramaFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.PontoProcessadoFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.ProcessamentoFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.RegimeFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.RelogioFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.ServicoCrudGenerico.class);
+        resources.add(br.gov.ce.saude.ponto.servico.SituacaoFuncionalFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.TipoJustificativaFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.VinculoFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.relatorio.RelatorioHoraTrabalhadaFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.relatorio.RelatorioNaoBatemPontoFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.relatorio.RelatorioOcorrenciaFacadeREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.relatorio.RelatorioPontoAgrupadoREST.class);
+        resources.add(br.gov.ce.saude.ponto.servico.relatorio.RelatorioSemEscalaFacadeREST.class);
+    }
+    
+}

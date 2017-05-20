@@ -1,0 +1,131 @@
+package br.gov.ce.saude.ponto.servico;
+
+import br.gov.ce.saude.ponto.entidade.Relogio;
+import javax.ws.rs.Consumes;
+import javax.ws.rs.PathParam;
+import br.gov.ce.autenticacao.service.AbstractFacade;
+import br.gov.ce.saude.autenticacao.exception.ServiceException;
+import br.gov.ce.saude.ponto.entidade.Funcionario;
+import br.gov.ce.saude.ponto.entidade.JustificativaFuncionario;
+import java.io.File;
+import java.math.BigInteger;
+import java.text.SimpleDateFormat;
+import java.util.List;
+import javax.ejb.Stateless;
+import javax.transaction.Transactional;
+import javax.ws.rs.DELETE;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
+
+/**
+ *
+ * @author jr
+ */
+@Stateless
+@Path("relogio")
+public class RelogioFacadeREST extends AbstractFacade<Relogio, ServiceException> {
+    
+    private static final String SERVER_UPLOAD_LOCATION_FOLDER = "/home/jr/licencas/";
+    private static final String MACADRESS = "";
+    private static final int MAX_FILE_SIZE = 500000; // 500 kb
+
+    private SimpleDateFormat format_dd_MM_yyyy = new SimpleDateFormat("dd/MM/yyyy");
+
+    public RelogioFacadeREST() {
+        super(Relogio.class);
+    }
+//            
+//            Query query = getEntityManager().createQuery("FROM Funcionario WHERE nome=:parnomeResponsavel");
+//            query.setParameter("parnomeResponsavel", parnomeResponsavel);
+//            Funcionario f = (Funcionario) query.getSingleResult();
+//
+//            Query querymac = getEntityManager().createQuery("FROM Relogio WHERE nome=:parmacaddress");
+//            query.setParameter("parmacaddress", parmacaddress);
+//            Relogio fx = (Relogio) querymac.getSingleResult();
+//    
+ 
+    //http://localhost:8087/pontows/webresources/relogio/criar/12263/000AE4DBDACX/FP143303/teste/31015176/90384017/JOSE RIBAMAR FERREIRA JUNIOR/A/definitiva
+    
+    @Transactional
+    @DELETE
+    @Path("{rmdir/{id}")
+    public String remove(@PathParam("id") BigInteger id) {
+        try {
+            Relogio rel = super.find(id);
+            getBusiness().getSesaDao().getEntityManager().remove(rel);
+            getBusiness().getSesaDao().getEntityManager().flush();
+            File f = new File(SERVER_UPLOAD_LOCATION_FOLDER + File.separator + rel);
+            if (f.exists()) {
+                f.delete();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return "{\"ok\":\"ok\"}";
+    }
+    
+    @GET
+    @Path("criar/{parorganogramaFk}/{parmacaddress}/"
+              + "{parnumSerieLeitor}/{parsetor}/{partelefone}/{parresponsavelMatricula}/"
+              + "{parnomeResponsavel}/{parstatus}/{parlicenca}")
+    @Consumes({"application/json"})
+    @Produces({"application/json"})
+    public Relogio create(
+            @PathParam("parorganogramaFk") Integer parorganogramaFk,
+            @PathParam("parmacaddress") String parmacaddress,
+            @PathParam("parnumSerieLeitor") String parnumSerieLeitor,
+            @PathParam("parsetor") String parsetor,  
+            @PathParam("partelefone") String partelefone,
+            @PathParam("parresponsavelMatricula") String parresponsavelMatricula, 
+            @PathParam("parnomeResponsavel") String parnomeResponsavel,
+            @PathParam("parstatus") String parstatus,
+            @PathParam("parlicenca") String parlicenca) {
+      
+            Relogio relogio = new Relogio();
+            relogio.setOrganogramaFk(parorganogramaFk);
+            relogio.setMacaddress(parmacaddress);
+            relogio.setNumSerieLeitor(parnumSerieLeitor);
+            relogio.setSetor(parsetor);
+            relogio.setTelefone(partelefone);
+            relogio.setResponsavelMatricula(parresponsavelMatricula);
+            relogio.setNomeResponsavel(parnomeResponsavel);
+            relogio.setStatus(parstatus);
+            relogio.setLicenca(parlicenca);
+            
+            super.create(relogio);
+            
+            return relogio;
+    }
+        
+    @GET
+    @Path("{lista}")
+    @Consumes({"application/json"})
+    @Produces({"application/json"})
+    @Override
+    public List<Relogio> findAll() {
+        List<Relogio> lista = super.findAll();
+        return lista;
+    }
+
+    @GET
+    @Path("macaddress/{mac}")
+    @Consumes({"application/json"})
+    @Produces({"application/json"})
+    public String buscaMacaddress(@PathParam("mac") String mac) {
+        Relogio relogio = new Relogio();
+        relogio.setMacaddress(mac);
+        String buscaMacaddress = relogio.getMacaddress();
+        return buscaMacaddress;
+    }
+    @GET
+    @Path("funcionario/{parnome}")
+    @Consumes({"application/json"})
+    @Produces({"application/json"})
+    public String buscaFuncionario(@PathParam("parnome") String parnome) {
+        Funcionario funcionario = new Funcionario();
+        funcionario.setNome(parnome);
+        String buscaFuncionario = funcionario.getNome();
+        return buscaFuncionario;
+    }
+}

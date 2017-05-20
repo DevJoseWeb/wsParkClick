@@ -1,0 +1,167 @@
+package br.gov.ce.saude.ponto.servico;
+
+import br.gov.ce.saude.ponto.entidade.Relogio;
+import javax.ws.rs.Consumes;
+import javax.ws.rs.PathParam;
+import br.gov.ce.autenticacao.service.AbstractFacade;
+import br.gov.ce.saude.autenticacao.exception.ServiceException;
+import br.gov.ce.saude.ponto.entidade.Funcionario;
+import java.io.File;
+import java.io.IOException;
+import java.math.BigInteger;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.List;
+import javax.ejb.Stateless;
+import javax.transaction.Transactional;
+import javax.ws.rs.DELETE;
+import javax.ws.rs.GET;
+import javax.ws.rs.POST;
+import javax.ws.rs.PUT;
+import javax.ws.rs.Path;
+import javax.ws.rs.Produces;
+import org.apache.commons.net.ftp.FTPClient;
+
+/**
+ *
+ * @author jr
+ */
+@Stateless
+@Path("relogio")
+public class RelogioFacadeREST extends AbstractFacade<Relogio, ServiceException> {
+
+    private static final String SERVER_UPLOAD_LOCATION_FOLDER = "/home/jr/licencas/";
+    private static final String MACADRESS = "";
+    private static final int MAX_FILE_SIZE = 500000; // 500 kb
+
+    private SimpleDateFormat format_dd_MM_yyyy = new SimpleDateFormat("dd/MM/yyyy");
+
+    public RelogioFacadeREST() {
+        super(Relogio.class);
+    }
+//            
+//            Query query = getEntityManager().createQuery("FROM Funcionario WHERE nome=:parnomeResponsavel");
+//            query.setParameter("parnomeResponsavel", parnomeResponsavel);
+//            Funcionario f = (Funcionario) query.getSingleResult();
+//
+//            Query querymac = getEntityManager().createQuery("FROM Relogio WHERE nome=:parmacaddress");
+//            query.setParameter("parmacaddress", parmacaddress);
+//            Relogio fx = (Relogio) querymac.getSingleResult();
+//    
+
+    @Transactional
+    @DELETE
+    @Path("{rmdir/{id}")
+    public String remove(@PathParam("id") BigInteger id) {
+        try {
+            Relogio rel = super.find(id);
+            getBusiness().getSesaDao().getEntityManager().remove(rel);
+            getBusiness().getSesaDao().getEntityManager().flush();
+            File f = new File(SERVER_UPLOAD_LOCATION_FOLDER + File.separator + rel);
+            if (f.exists()) {
+                f.delete();
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return "{\"ok\":\"ok\"}";
+    }
+
+    /**
+     *
+     * @param entity
+     * @return
+     * @throws ParseException
+     */
+    @POST
+    @Path("criar")
+    @Consumes({"application/json"})
+    @Produces({"application/json"})
+    @Override
+    public Relogio create(Relogio entity) {
+        String server = "172.29.0.147";
+        String usuario = "ftpbiometria";
+        String senha = "ftp@bio147";
+        String local_mac = "/home/esmayktillesse/";
+        int porta = 21;
+
+        FTPClient ftpClient = new FTPClient();
+        try {
+            ftpClient.connect(server, porta);
+            ftpClient.login(usuario, senha);
+            System.out.println("Conectado..");
+            String[] arq = ftpClient.listNames();
+            System.out.println("Listando arquivos: \n");
+            for (String f : arq) {
+                System.out.println(f);
+            }
+            File diretorio = new File(local_mac + entity.getMacaddress());
+            if (entity.getMacaddress() != null) {
+                if (!diretorio.exists()) {
+                    diretorio.mkdir();
+                }else{
+                    System.err.println("Existe.");
+                }
+            }
+        } catch (IOException ex) {
+            System.out.println("Error: " + ex.getMessage());
+            ex.printStackTrace();
+        } finally {
+            try {
+                if (ftpClient.isConnected()) {
+                    ftpClient.logout();
+                    ftpClient.disconnect();
+                    System.out.println("Desconectado...");
+                }
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+            return super.create(entity);
+        }
+    }
+
+    @GET
+    @Path("{id}")
+    @Produces({"application/json"})
+    public Relogio getRelogio(@PathParam("id") BigInteger id) {
+        return super.find(id);
+    }
+
+    @GET
+    @Consumes({"application/json"})
+    @Produces({"application/json"})
+    @Override
+    public List<Relogio> findAll() {
+        List<Relogio> lista = super.findAll();
+        return lista;
+    }
+    
+    @PUT
+    @Override
+    @Consumes({"application/json"})
+    @Produces({"application/json"})
+    public Relogio edit(Relogio entity) {
+        return super.edit(entity);
+    }
+
+    @GET
+    @Path("macaddress/{mac}")
+    @Consumes({"application/json"})
+    @Produces({"application/json"})
+    public String buscaMacaddress(@PathParam("mac") String mac) {
+        Relogio relogio = new Relogio();
+        relogio.setMacaddress(mac);
+        String buscaMacaddress = relogio.getMacaddress();
+        return buscaMacaddress;
+    }
+    @GET
+    @Path("funcionario/{parnome}")
+    @Consumes({"application/json"})
+    @Produces({"application/json"})
+    public String buscaFuncionario(@PathParam("parnome") String parnome) {
+        Funcionario funcionario = new Funcionario();
+        funcionario.setNome(parnome);
+        String buscaFuncionario = funcionario.getNome();
+        return buscaFuncionario;
+    }
+}

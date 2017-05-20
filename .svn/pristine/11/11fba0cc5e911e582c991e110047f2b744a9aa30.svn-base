@@ -1,0 +1,270 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package br.gov.ce.saude.ponto.entidade;
+
+import br.gov.ce.auditoriaws.entidade.EntidadeBase;
+import br.gov.ce.autenticacao.core.SesaModel;
+import br.gov.ce.saude.ponto.util.JsonDateDeserializer;
+import br.gov.ce.saude.ponto.util.JsonDateSerializer;
+import br.gov.ce.saude.ponto.vo.ContratoVO;
+import br.gov.ce.saude.ponto.vo.JustificativaGestorVO;
+import java.math.BigInteger;
+import java.util.Date;
+import javax.persistence.Basic;
+import javax.persistence.Column;
+import javax.persistence.ColumnResult;
+import javax.persistence.ConstructorResult;
+import javax.persistence.Entity;
+import javax.persistence.GeneratedValue;
+import javax.persistence.GenerationType;
+import javax.persistence.Id;
+import javax.persistence.JoinColumn;
+import javax.persistence.ManyToOne;
+import javax.persistence.SequenceGenerator;
+import javax.persistence.SqlResultSetMapping;
+import javax.persistence.SqlResultSetMappings;
+import javax.persistence.Table;
+import javax.persistence.Temporal;
+import javax.persistence.TemporalType;
+import javax.validation.constraints.NotNull;
+import javax.validation.constraints.Size;
+import javax.xml.bind.annotation.XmlRootElement;
+import org.codehaus.jackson.map.annotate.JsonDeserialize;
+import org.codehaus.jackson.map.annotate.JsonSerialize;
+
+/**
+ *
+ * @author joao
+ */
+@Entity
+@Table(name = "t_funcionario_contrato", schema = "e_pontows")
+@SequenceGenerator(name = "seq_funcionario_contrato", sequenceName = "e_pontows.seq_funcionario_contrato",
+        initialValue = 1, allocationSize = 1)
+
+@SqlResultSetMappings({
+    @SqlResultSetMapping(
+            name = "funciorioContrato",
+            classes = {
+                @ConstructorResult(
+                        targetClass = ContratoVO.class,
+                        columns = {
+                            @ColumnResult(name = "funcionario_contrato_fk"),
+                            @ColumnResult(name = "funcionario_horario_pk"),
+                            @ColumnResult(name = "horario_fk"),
+                            @ColumnResult(name = "nome"),
+                            @ColumnResult(name = "matricula"),
+                            @ColumnResult(name = "sigla"),
+                            @ColumnResult(name = "diarista"),
+                            @ColumnResult(name = "plantonista"),
+                            @ColumnResult(name = "horaExtra")
+                        }
+                )
+            }
+    ),
+    @SqlResultSetMapping(
+            name = "funciorioJustificativaGestor",
+            classes = {
+                @ConstructorResult(
+                        targetClass = JustificativaGestorVO.class,
+                        columns = {
+                            @ColumnResult(name = "funcionario_contrato_pk"),
+                            @ColumnResult(name = "matricula"),
+                            @ColumnResult(name = "nome"),
+                            @ColumnResult(name = "unidade"),
+                            @ColumnResult(name = "ocorrencia"),
+                            @ColumnResult(name = "diarista"),
+                            @ColumnResult(name = "plantonista"),
+                            @ColumnResult(name = "horaExtra"),
+                            
+                        }
+                )
+            }
+    )
+})
+@XmlRootElement
+public class FuncionarioContrato extends EntidadeBase implements SesaModel {
+
+    private static final long serialVersionUID = 8321552078023370330L;
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.AUTO, generator = "seq_funcionario_contrato")
+    @Basic(optional = false)
+    @Column(name = "funcionario_contrato_pk")
+    private BigInteger id;
+
+    @NotNull
+    @Size(min = 1, max = 8)
+    @Column(name = "matricula")
+    private String matricula;
+
+    //@JsonSerialize(using = JsonEntidadeFkSerializer.class)
+    @JoinColumn(name = "vinculo_fk", referencedColumnName = "vinculo_pk")
+    @ManyToOne
+    private Vinculo vinculoFk;
+
+    //@JsonSerialize(using = JsonEntidadeFkSerializer.class)
+    @JoinColumn(name = "situacao_funcional_fk", referencedColumnName = "situacao_funcional_pk")
+    @ManyToOne
+    private SituacaoFuncional situacaoFuncionalFk;
+
+    //@JsonSerialize(using = JsonEntidadeFkSerializer.class)
+    @JoinColumn(name = "pessoa_fk", referencedColumnName = "pessoa_pk")
+    @ManyToOne(optional = false)
+    private Funcionario funcionarioFk;
+
+    //@JsonSerialize(using = JsonEntidadeFkSerializer.class)
+    @JoinColumn(name = "unidade_funcional_fk", referencedColumnName = "organograma_pk")
+    @ManyToOne(optional = false)
+    private Organograma unidadeFuncionalFk;
+
+    @JsonSerialize(using = JsonDateSerializer.class)
+    @JsonDeserialize(using = JsonDateDeserializer.class)
+    @Column(name = "admissao")
+    @Temporal(TemporalType.DATE)
+    private Date admissao;
+
+    //@JsonSerialize(using = JsonEntidadeFkSerializer.class)
+    @JoinColumn(name = "unidade_organica_fk", referencedColumnName = "organograma_pk")
+    @ManyToOne
+    private Organograma unidadeOrganicaFk;
+
+    @Size(max = 4)
+    @Column(name = "classe")
+    private String classe;
+
+    @Column(name = "referencia")
+    private Short referencia;
+
+    @JoinColumn(name = "funcao_fk", referencedColumnName = "funcao_pk")
+    @ManyToOne
+    private Funcao funcaoFk;
+
+    public FuncionarioContrato() {
+    }
+
+    public FuncionarioContrato(BigInteger funcionarioContratoPk) {
+        this.id = funcionarioContratoPk;
+    }
+
+    public FuncionarioContrato(BigInteger funcionarioContratoPk, String matricula) {
+        this.id = funcionarioContratoPk;
+        this.matricula = matricula;
+    }
+
+    public BigInteger getId() {
+        return id;
+    }
+
+    public void setId(BigInteger id) {
+        this.id = id;
+    }
+
+    public String getMatricula() {
+        return matricula;
+    }
+
+    public void setMatricula(String matricula) {
+        this.matricula = matricula;
+    }
+
+    public Funcao getFuncaoFk() {
+        return funcaoFk;
+    }
+
+    public void setFuncaoFk(Funcao funcaoFk) {
+        this.funcaoFk = funcaoFk;
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 0;
+        hash += (id != null ? id.hashCode() : 0);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object object) {
+        // TODO: Warning - this method won't work in the case the id fields are not set
+        if (!(object instanceof FuncionarioContrato)) {
+            return false;
+        }
+        FuncionarioContrato other = (FuncionarioContrato) object;
+        if ((this.id == null && other.id != null) || (this.id != null && !this.id.equals(other.id))) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public String toString() {
+        return "br.gov.ce.saude.ponto.entidade.FuncionarioContrato[ funcionarioContratoPk=" + id + " ]";
+    }
+
+    public Organograma getUnidadeFuncionalFk() {
+        return unidadeFuncionalFk;
+    }
+
+    public void setUnidadeFuncionalFk(Organograma unidadeFuncionalFk) {
+        this.unidadeFuncionalFk = unidadeFuncionalFk;
+    }
+
+    public Date getAdmissao() {
+        return admissao;
+    }
+
+    public void setAdmissao(Date admissao) {
+        this.admissao = admissao;
+    }
+
+    public Organograma getUnidadeOrganicaFk() {
+        return unidadeOrganicaFk;
+    }
+
+    public void setUnidadeOrganicaFk(Organograma unidadeOrganicaFk) {
+        this.unidadeOrganicaFk = unidadeOrganicaFk;
+    }
+
+    public String getClasse() {
+        return classe;
+    }
+
+    public void setClasse(String classe) {
+        this.classe = classe;
+    }
+
+    public Short getReferencia() {
+        return referencia;
+    }
+
+    public void setReferencia(Short referencia) {
+        this.referencia = referencia;
+    }
+
+    public Vinculo getVinculoFk() {
+        return vinculoFk;
+    }
+
+    public void setVinculoFk(Vinculo vinculoFk) {
+        this.vinculoFk = vinculoFk;
+    }
+
+    public SituacaoFuncional getSituacaoFuncionalFk() {
+        return situacaoFuncionalFk;
+    }
+
+    public void setSituacaoFuncionalFk(SituacaoFuncional situacaoFuncionalFk) {
+        this.situacaoFuncionalFk = situacaoFuncionalFk;
+    }
+
+    public Funcionario getFuncionarioFk() {
+        return funcionarioFk;
+    }
+
+    public void setFuncionarioFk(Funcionario funcionarioFk) {
+        this.funcionarioFk = funcionarioFk;
+    }
+
+}

@@ -1,0 +1,146 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package br.gov.ce.saude.ponto.vo;
+
+import java.io.Serializable;
+import java.util.Date;
+import javax.persistence.Temporal;
+import javax.persistence.TemporalType;
+import org.codehaus.jackson.map.annotate.JsonSerialize;
+
+/**
+ *
+ * @author esmayktillesse
+ */
+@JsonSerialize(include = JsonSerialize.Inclusion.NON_NULL)
+public class HorasTrabalhadaVO implements Serializable {
+
+    private static final long serialVersionUID = -8895810789262922051L;
+
+    private String nome;
+    private String funcao;
+    private String sigla;
+
+    private String data;
+    private Double diaSemana;
+
+    private String horario;
+
+    @Temporal(TemporalType.TIMESTAMP)
+    private Date batida1;
+    @Temporal(TemporalType.TIMESTAMP)
+    private Date batida2;
+
+    private String tipoPlantao;
+    private Long hora;
+    private String plantao;
+
+    public HorasTrabalhadaVO() {
+    }
+
+    public HorasTrabalhadaVO(String nome, String funcao, String sigla, String data, Double diaSemana, String horario, Date batida1, Date batida2, String tipoPlantao, Long hora, String plantao) {
+        this.nome = nome;
+        this.funcao = funcao;
+        this.sigla = sigla;
+        this.data = data;
+        this.diaSemana = diaSemana;
+        this.horario = horario;
+        this.batida1 = batida1;
+        this.batida2 = batida2;
+        this.tipoPlantao = tipoPlantao;
+        this.hora = hora;
+        this.plantao = plantao;
+    }
+
+    public String getNome() {
+        return nome;
+    }
+
+    public void setNome(String nome) {
+        this.nome = nome;
+    }
+
+    public String getFuncao() {
+        return funcao;
+    }
+
+    public void setFuncao(String funcao) {
+        this.funcao = funcao;
+    }
+
+    public String getSigla() {
+        return sigla;
+    }
+
+    public void setSigla(String sigla) {
+        this.sigla = sigla;
+    }
+
+    public String getData() {
+        return data;
+    }
+
+    public void setData(String data) {
+        this.data = data;
+    }
+
+    public Double getDiaSemana() {
+        return diaSemana;
+    }
+
+    public void setDiaSemana(Double diaSemana) {
+        this.diaSemana = diaSemana;
+    }
+
+    public String getHorario() {
+        return horario;
+    }
+
+    public void setHorario(String horario) {
+        this.horario = horario;
+    }
+
+    public Date getBatida1() {
+        return batida1;
+    }
+
+    public void setBatida1(Date batida1) {
+        this.batida1 = batida1;
+    }
+
+    public Date getBatida2() {
+        return batida2;
+    }
+
+    public void setBatida2(Date batida2) {
+        this.batida2 = batida2;
+    }
+
+    public String getTipoPlantao() {
+        return tipoPlantao;
+    }
+
+    public void setTipoPlantao(String tipoPlantao) {
+        this.tipoPlantao = tipoPlantao;
+    }
+
+    public Long getHora() {
+        return hora;
+    }
+
+    public void setHora(Long hora) {
+        this.hora = hora;
+    }
+
+    public String getPlantao() {
+        return plantao;
+    }
+
+    public void setPlantao(String plantao) {
+        this.plantao = plantao;
+    }
+
+}

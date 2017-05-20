@@ -1,0 +1,108 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package br.gov.ce.saude.ponto.servico;
+
+import br.gov.ce.autenticacao.service.AbstractFacade;
+import br.gov.ce.saude.autenticacao.exception.ServiceException;
+import br.gov.ce.saude.ponto.entidade.Organograma;
+import br.gov.ce.saude.ponto.vo.UnidadeFuncionalVO;
+import java.math.BigInteger;
+import java.sql.SQLException;
+import java.util.List;
+import javax.ejb.Stateless;
+import javax.persistence.Query;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
+import javax.ws.rs.Produces;
+
+/**
+ *
+ * @author esmayktillesse
+ */
+@Stateless
+@Path("organograma")
+public class OrganogramaFacadeREST extends AbstractFacade<Organograma, ServiceException> {
+
+    public OrganogramaFacadeREST() {
+        super(Organograma.class);
+    }
+
+    @GET
+    @Override
+    @Path("unidadefuncional/")
+    @Produces({"application/json"})
+    public List<Organograma> findAll() {
+        List<Organograma> lista = super.findAll();
+        return lista;
+    }
+
+    @GET
+    @Path("unidadeorganica/")
+    @Produces({"application/json"})
+    public List<Organograma> listarOrganicas() {
+        String hql = "SELECT o FROM Organograma o WHERE id in (12000,12076,12111,"
+                + "12116,12132,12145,12153,12158,12179,12190,12205,12213,12216,16470,"
+                + "12219,12220,12221,12228,12231,12234,12237,12246,12256,12263,"
+                + "12324,12351,12370,12416,12455,12528,12531,12544,12545,12569,12470)";
+        Query q = getEntityManager().createQuery(hql);
+        List<Organograma> lista = q.getResultList();
+        return lista;
+    }
+
+    @GET
+    @Path("unidadeorganicaFuncional/")
+    @Produces({"application/json"})
+    public List<Organograma> listarOrganicasFuncional() {
+        String hql = "SELECT o FROM Organograma o WHERE id in (12001,12002,12005,"
+                + "12006,12009,12010,12011,12013,12014,12023,12026,12027,12028,"
+                + "12029,12030,12031,12033,12034,12035,12036,12038,12039,12041,"
+                + "12044,12045,12046,12047,12049,12052,12053,12056,12059,12061,"
+                + "12062,12065,12068,12071,12072,12073,12074,12075,12524,12529,"
+                + "12546,12547,12548,12550,12551,12554,12555,12556,12557,12558,"
+                + "12559,12567,12568,12573,12574,16467,16501,16502,12076,12086,"
+                + "12097,12102,12107,12116,12122,12127,12132,12140,12145,12153,"
+                + "12158,12164,12169,12174,12179,12184,12190,15909,15394,15806,"
+                + "15856,15693,15748,15569,15460,14731,14677,14348,14391,15158,"
+                + "13267,13314,12921,12205,12213,12216,12219,12220,12221,12228,"
+                + "12231,12234,12237,12246,12256,12263,12324,12351,12370,12416,"
+                + "12455,12528,12531,12544,12545,12569,16470)"
+                + "ORDER BY sigla";
+        Query q = getEntityManager().createQuery(hql);
+        List<Organograma> lista = q.getResultList();
+        return lista;
+    }
+
+    /**
+     * Lista as unidades organicas que um usuário esta lotado
+     *
+     */
+    @GET
+    @Path("porUsuario/{idUsuario}")
+    @Produces({"application/json"})
+    public List<Organograma> find(@PathParam("idUsuario") BigInteger idUsuario) throws SQLException {
+
+        Query queryEscala = getBusiness().getSesaDao().getEntityManager().
+                createQuery("SELECT fc.unidadeOrganicaFk "
+                        + "FROM FuncionarioContrato fc where fc.funcionarioFk.id = :idUsuario");
+        queryEscala.setParameter("idUsuario", idUsuario);
+
+        List<Organograma> organograma = (List<Organograma>) queryEscala.getResultList();
+        return organograma;
+    }
+
+    @GET
+    @Path("funcional/{orgPontoFk}")
+    @Produces({"application/json"})
+    public List<UnidadeFuncionalVO> lista(@PathParam("orgPontoFk") Integer orgPontoFk) {
+        Query sql = getEntityManager().
+                createNativeQuery("SELECT * FROM e_base.v_org_recursivo "
+                        + "WHERE org_ponto_fk =:orgPontoFk", "unidadeFuncionalVO");
+        sql.setParameter("orgPontoFk", orgPontoFk);
+        List<UnidadeFuncionalVO> unidadeFuinconalVO = sql.getResultList();
+        return unidadeFuinconalVO;
+    }
+}

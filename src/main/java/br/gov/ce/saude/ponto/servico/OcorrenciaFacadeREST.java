@@ -1,0 +1,188 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package br.gov.ce.saude.ponto.servico;
+
+import br.gov.ce.autenticacao.service.AbstractFacade;
+import br.gov.ce.saude.autenticacao.exception.ServiceException;
+import br.gov.ce.saude.ponto.entidade.Ocorrencia;
+import br.gov.ce.saude.ponto.vo.OcorrenciaBatidaVO;
+import java.math.BigInteger;
+import java.util.List;
+import javax.ejb.Stateless;
+import javax.ejb.TransactionAttribute;
+import static javax.ejb.TransactionAttributeType.NOT_SUPPORTED;
+import javax.persistence.Query;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
+import javax.ws.rs.Produces;
+
+/**
+ *
+ * @author joao
+ */
+@Stateless
+@Path("ocorrencia")
+public class OcorrenciaFacadeREST extends AbstractFacade<Ocorrencia, ServiceException> {
+
+    public OcorrenciaFacadeREST() {
+        super(Ocorrencia.class);
+    }
+
+    @TransactionAttribute(NOT_SUPPORTED)
+    @GET
+    @Path("batidas/{idFuncContrato}/{periodo}")
+    @Produces({"application/json"})
+    public List<OcorrenciaBatidaVO> listaOcorrencias(@PathParam("idFuncContrato") BigInteger idFuncContrato,
+            @PathParam("periodo") String periodo) {
+
+        String consulta = "(SELECT\n"
+                + "                t_batida_rel.batida_rel_pk,\n"
+                + "                CAST(null as bigint) as batida_rel_escala_pk,\n"
+                + "                t_ponto_processado.ponto_processado_pk,\n"
+                + "                CASE EXTRACT( DOW FROM t_batida_rel.data)\n"
+                + "                WHEN 0 THEN 'Dom'\n"
+                + "                WHEN 1 THEN 'Seg'\n"
+                + "                WHEN 2 THEN 'Ter'\n"
+                + "                WHEN 3 THEN 'Qua'\n"
+                + "                WHEN 4 THEN 'Qui'\n"
+                + "                WHEN 5 THEN 'Sex'\n"
+                + "                WHEN 6 THEN 'Sáb'\n"
+                + "                END AS dia_semana,\n"
+                + "                t_batida_rel.data, \n"
+                + "                t_batida_rel.batida_1 as batida_1,\n"
+                + "                t_batida_rel.batida_2 as batida_2,\n"
+                + "                t_batida_rel.batida_3 as batida_3,\n"
+                + "                t_batida_rel.batida_4 as batida_4,\n"
+                + "                t_ocorrencia.descricao as ocorrencia,\n"
+                + "                t_batida_rel.tipo_justificativa_fk, \n"
+                + "                t_ponto_processado.justificativa_fk as tipo_justificativa_processada_fk,"
+                + "                CASE \n"
+                + "                WHEN (t_ponto_processado.justificativa_fk) is not null \n"
+                + "                 THEN (select descricao from t_justificativa where justificativa_pk = t_ponto_processado.justificativa_fk) \n"
+                + "                 ELSE (select descricao from t_justificativa where justificativa_pk = t_batida_rel.tipo_justificativa_fk)\n"
+                + "                 END as tipo_justificativa, \n"
+                + "                (SELECT CASE \n"
+                + "                WHEN bt.justificativa is not null OR \n"
+                + "                     bt.tipo_justificativa_fk is not null OR \n"
+                + "                     t_justificativa_funcionario.justificativa_funcionario_pk is not null \n"
+                + "                     THEN TRUE ELSE FALSE\n"
+                + "                END as justificado FROM \n"
+                + "                e_pontows.t_batida_rel bt left join e_pontows.t_justificativa_funcionario on \n"
+                + "                t_justificativa_funcionario.batida_rel_fk = bt.batida_rel_pk\n"
+                + "                                WHERE bt.batida_rel_pk = t_batida_rel.batida_rel_pk limit 1) as tem_justificativa,\n"
+                + "                                CASE WHEN justificativa_fk is not null THEN TRUE \n"
+                + "                                ELSE FALSE END as justificado\n"
+                + "                FROM \n"
+                + "                e_pontows.t_batida_rel,   \n"
+                + "                e_pontows.t_ocorrencia, \n"
+                + "                e_pontows.t_funcionario_contrato, \n"
+                + "                e_pontows.t_funcionario_horario,\n"
+                + "                e_pontows.t_ponto_processado, \n"
+                + "                e_pontows.t_processamento \n"               
+                + "                WHERE \n"
+                + "                t_ponto_processado.processamento_fk = t_processamento.processamento_pk AND\n"
+                + "                t_ponto_processado.batida_rel_fk = t_batida_rel.batida_rel_pk AND\n"
+                + "                t_ocorrencia.ocorrencia_pk = t_ponto_processado.ocorrencia_fk AND\n"
+                + "                t_funcionario_contrato.funcionario_contrato_pk = t_funcionario_horario.funcionario_contrato_fk AND\n"
+                + "                t_funcionario_horario.funcionario_horario_pk = t_batida_rel.funcionario_horario_fk AND\n"
+                + "                to_char(t_batida_rel.data,'MM/yyyy')  = :periodo AND \n"
+                + "                to_char(t_processamento.periodo_inicial,'MM/yyyy')  = :periodo AND \n"                
+                + "                t_funcionario_contrato.funcionario_contrato_pk = :idFuncContrato \n"
+                + "                ORDER BY t_batida_rel.data)\n";
+
+        Query query = getEntityManager().createNativeQuery(consulta, "ocorrenciaBatida");
+        query.setParameter("idFuncContrato", idFuncContrato);
+        query.setParameter("periodo", periodo);
+
+        List<OcorrenciaBatidaVO> ocorrencias = query.getResultList();
+
+        return ocorrencias;
+    }
+
+    @TransactionAttribute(NOT_SUPPORTED)
+    @GET
+    @Path("escala/{tipo}/{idFuncContrato}/{periodo}")
+    @Produces({"application/json"})
+    public List<OcorrenciaBatidaVO> listaOcorrenciasEscala(@PathParam("tipo") String tipo, @PathParam("idFuncContrato") BigInteger idFuncContrato,
+            @PathParam("periodo") String periodo) {
+
+        String consulta = "       (SELECT\n"
+                + "                CAST(null as bigint) as batida_rel_pk,\n"
+                + "                t_batida_rel_escala.batida_rel_escala_pk,\n"
+                + "                t_ponto_processado.ponto_processado_pk,\n"
+                + "                CASE EXTRACT( DOW FROM t_escala_item.entrada)\n"
+                + "                WHEN 0 THEN 'Dom'\n"
+                + "                WHEN 1 THEN 'Seg'\n"
+                + "                WHEN 2 THEN 'Ter'\n"
+                + "                WHEN 3 THEN 'Qua'\n"
+                + "                WHEN 4 THEN 'Qui'\n"
+                + "                WHEN 5 THEN 'Sex'\n"
+                + "                WHEN 6 THEN 'Sáb'\n"
+                + "                END AS dia_semana,\n"
+                + "                t_escala_item.entrada as data,\n"
+                + "                t_batida_rel_escala.batida_1 as batida_1,\n"
+                + "                t_batida_rel_escala.batida_1 as batida_2,\n"
+                + "                t_batida_rel_escala.batida_2 as batida_3,\n"
+                + "                t_batida_rel_escala.batida_2 as batida_4,"
+                + "                t_ocorrencia.descricao as ocorrencia,\n"
+                + "                t_batida_rel_escala.tipo_justificativa_fk, \n"
+                + "                t_ponto_processado.justificativa_fk as tipo_justificativa_processada_fk,"
+                + "                CASE \n"
+                + "                WHEN (t_ponto_processado.justificativa_fk) is not null \n"
+                + "                 THEN (select descricao from t_justificativa where justificativa_pk = t_ponto_processado.justificativa_fk) \n"
+                + "                 ELSE (select descricao from t_justificativa where justificativa_pk = t_batida_rel_escala.tipo_justificativa_fk)\n"
+                + "                 END as tipo_justificativa, \n"
+                
+                + "                (SELECT CASE\n"
+                + "                WHEN bt.justificativa is not null OR\n"
+                + "                     bt.tipo_justificativa_fk is not null OR\n"
+                + "                     t_justificativa_funcionario.justificativa_funcionario_pk is not null\n"
+                + "                     THEN TRUE ELSE FALSE\n"
+                + "                END as justificado FROM\n"
+                + "                e_pontows.t_batida_rel_escala bt left join e_pontows.t_justificativa_funcionario on\n"
+                + "                t_justificativa_funcionario.batida_rel_escala_fk = bt.batida_rel_escala_pk\n"
+                + "                                WHERE bt.batida_rel_escala_pk = t_batida_rel_escala.batida_rel_escala_pk) as tem_justificativa,\n"
+                + "                                CASE WHEN justificativa_fk is not null THEN TRUE\n"
+                + "                                ELSE FALSE END as justificado\n"
+                + "                                FROM\n"
+                + "                e_pontows.t_batida_rel_escala,  \n"
+                + "                e_pontows.t_ocorrencia,\n"
+                + "                e_pontows.t_funcionario_contrato,\n"
+                + "                e_pontows.t_funcionario_horario,\n"
+                + "                e_pontows.t_ponto_processado,\n"
+                + "                e_pontows.t_escala_item,\n"
+                + "                e_pontows.t_processamento\n"
+                + "                WHERE\n"
+                + "                t_ponto_processado.processamento_fk = t_processamento.processamento_pk AND\n"
+                + "                t_ponto_processado.batida_rel_escala_fk = t_batida_rel_escala.batida_rel_escala_pk AND\n"
+                + "                t_ocorrencia.ocorrencia_pk = t_ponto_processado.ocorrencia_fk AND\n"
+                + "                t_funcionario_contrato.funcionario_contrato_pk = t_funcionario_horario.funcionario_contrato_fk AND\n"
+                + "                t_escala_item.escala_item_pk = t_batida_rel_escala.escala_item_fk AND\n"
+                + "                t_funcionario_horario.funcionario_horario_pk = t_escala_item.funcionario_horario_fk AND\n"
+                + "                to_char(t_escala_item.entrada,'MM/yyyy') = :periodo AND\n"
+                + "                to_char(t_processamento.periodo_inicial,'MM/yyyy') = :periodo AND\n"
+                + "                t_funcionario_contrato.funcionario_contrato_pk = :idFuncContrato  AND\n"
+                + "                t_escala_item.escala_fk = :tipo\n"
+                + "                ORDER BY t_escala_item.entrada)";
+
+        Query query = getEntityManager().createNativeQuery(consulta, "ocorrenciaEscala");
+        query.setParameter("idFuncContrato", idFuncContrato);
+        query.setParameter("periodo", periodo);
+        if (tipo != null && tipo.equals("E")) {
+            query.setParameter("tipo", new BigInteger("1"));
+        } else {
+            if (tipo != null && tipo.equals("H")) {
+                query.setParameter("tipo", new BigInteger("4"));
+            }
+        }
+
+        List<OcorrenciaBatidaVO> ocorrencias = query.getResultList();
+
+        return ocorrencias;
+    }
+
+}

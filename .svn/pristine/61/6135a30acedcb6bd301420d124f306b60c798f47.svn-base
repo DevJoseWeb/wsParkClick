@@ -1,0 +1,305 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package br.gov.ce.saude.ponto.servico;
+
+import br.gov.ce.autenticacao.service.AbstractFacade;
+import br.gov.ce.saude.autenticacao.exception.ServiceException;
+import br.gov.ce.saude.ponto.entidade.Organograma;
+import br.gov.ce.saude.ponto.vo.PaginacaoVO;
+import br.gov.ce.saude.ponto.vo.UnidadeFuncionalVO;
+import java.math.BigInteger;
+import java.sql.SQLException;
+import java.util.List;
+import javax.ejb.Stateless;
+import javax.ejb.TransactionAttribute;
+import static javax.ejb.TransactionAttributeType.NOT_SUPPORTED;
+import javax.persistence.Query;
+import javax.ws.rs.Consumes;
+import javax.ws.rs.DELETE;
+import javax.ws.rs.GET;
+import javax.ws.rs.POST;
+import javax.ws.rs.PUT;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
+import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
+
+/**
+ *
+ * @author esmayktillesse
+ */
+@Stateless
+@Path("organograma")
+public class OrganogramaFacadeREST extends AbstractFacade<Organograma, ServiceException> {
+
+    public OrganogramaFacadeREST() {
+        super(Organograma.class);
+    }
+
+    @GET
+    @Override
+    @Path("unidadefuncional/")
+    @Produces({"application/json"})
+    public List<Organograma> findAll() {
+        List<Organograma> lista = super.findAll();
+        return lista;
+    }
+
+    /**
+     * Envia os dados somente das unidades organizacionais
+     *
+     * @return
+     * @throws SQLException
+     */
+    @GET
+    @Path("unidadeorganica/")
+    @Produces({"application/json"})
+    public List<Organograma> listarOrganicas() throws SQLException {
+        Query query = getBusiness().getSesaDao().getEntityManager().
+                createNativeQuery("select organograma_pk, sigla, nome_org\n"
+                        + "from e_base.v_org_recursivo where org_ponto_fk = organograma_pk\n"
+                        + "order by nome_org", "organogramaVO");
+
+        List<Organograma> organograma = (List<Organograma>) query.getResultList();
+        return organograma;
+    }
+
+    @GET
+    @Path("unidadeorganicaFuncional/")
+    @Produces({"application/json"})
+    public List<Organograma> listarOrganicasFuncional() {
+        String hql = "SELECT o FROM Organograma o WHERE id in (12001,12002,12005,"
+                + "12006,12009,12010,12011,12013,12014,12023,12026,12027,12028,"
+                + "12029,12030,12031,12033,12034,12035,12036,12038,12039,12041,"
+                + "12044,12045,12046,12047,12049,12052,12053,12056,12059,12061,"
+                + "12062,12065,12068,12071,12072,12073,12074,12075,12524,12529,"
+                + "12546,12547,12548,12550,12551,12554,12555,12556,12557,12558,"
+                + "12559,12567,12568,12573,12574,16467,16501,16502,12076,12086,"
+                + "12097,12102,12107,12116,12122,12127,12132,12140,12145,12153,"
+                + "12158,12164,12169,12174,12179,12184,12190,15909,15394,15806,"
+                + "15856,15693,15748,15569,15460,14731,14677,14348,14391,15158,"
+                + "13267,13314,12921,12205,12213,12216,12219,12220,12221,12228,"
+                + "12231,12234,12237,12246,12256,12263,12324,12351,12370,12416,"
+                + "12455,12528,12531,12544,12545,12569,16470)"
+                + "ORDER BY sigla";
+        Query q = getEntityManager().createQuery(hql);
+        List<Organograma> lista = q.getResultList();
+        return lista;
+    }
+
+    /**
+     * Lista as unidades organicas que um usuário esta lotado
+     *
+     */
+    @GET
+    @Path("porUsuario/{idUsuario}")
+    @Produces({"application/json"})
+    public List<Organograma> find(@PathParam("idUsuario") BigInteger idUsuario) throws SQLException {
+
+        Query queryEscala = getBusiness().getSesaDao().getEntityManager().
+                createQuery("SELECT fc.unidadeOrganicaFk "
+                        + "FROM FuncionarioContrato fc where fc.funcionarioFk.id = :idUsuario");
+        queryEscala.setParameter("idUsuario", idUsuario);
+
+        List<Organograma> organograma = (List<Organograma>) queryEscala.getResultList();
+        return organograma;
+    }
+
+    @GET
+    @Path("funcional/{orgPontoFk}")
+    @Produces({"application/json"})
+    public List<UnidadeFuncionalVO> lista(@PathParam("orgPontoFk") Integer orgPontoFk) {
+        Query sql = getEntityManager().
+                createNativeQuery("SELECT * FROM e_base.v_org_recursivo "
+                        + "WHERE org_ponto_fk =:orgPontoFk", "unidadeFuncionalVO");
+        sql.setParameter("orgPontoFk", orgPontoFk);
+        List<UnidadeFuncionalVO> unidadeFuinconalVO = sql.getResultList();
+        return unidadeFuinconalVO;
+    }
+
+    /**
+     * Lista as unidades organicas que um usuário esta lotado
+     *
+     */
+    @GET
+    @Path("unidadespermitidas/{idUsuario}")
+    @Produces({"application/json"})
+    public List<Organograma> permissaoUnidades(@PathParam("idUsuario") BigInteger idUsuario) throws SQLException {
+
+        Query query = getBusiness().getSesaDao().getEntityManager().
+                createNativeQuery("SELECT \n"
+                        + "  organograma_pk, \n"
+                        + "  sigla, \n"
+                        + "  nome_org\n"
+                        + "FROM \n"
+                        + "((SELECT \n"
+                        + "  t_organograma.organograma_pk, \n"
+                        + "  t_organograma.sigla, \n"
+                        + "  t_organograma.nome_org\n"
+                        + "FROM \n"
+                        + "  e_base.t_organograma, \n"
+                        + "  e_pontows.t_funcionario_contrato, \n"
+                        + "  e_pontows.t_unidade_organica, \n"
+                        + "  e_pontows.t_unidade_organica_item, \n"
+                        + "  e_pontows.t_hierarquia\n"
+                        + "WHERE \n"
+                        + "  t_unidade_organica.unidade_organica_pk = t_unidade_organica_item.unidade_organica_fk AND\n"
+                        + "  t_unidade_organica.organograma_fk = t_hierarquia.organograma_fk AND\n"
+                        + "  t_unidade_organica_item.organograma_fk = t_organograma.organograma_pk AND\n"
+                        + "  t_hierarquia.funcionario_contrato_fk = t_funcionario_contrato.funcionario_contrato_pk AND\n"
+                        + "  t_funcionario_contrato.pessoa_fk = :idUsuario AND\n"
+                        + "  t_organograma.organograma_pk in (select organograma_pk\n"
+                        + "     from e_base.v_org_recursivo where org_ponto_fk =organograma_pk)\n"
+                        + "  )\n"
+                        + "UNION \n"
+                        + "(SELECT \n"
+                        + " DISTINCT t_organograma.organograma_pk, \n"
+                        + "  t_organograma.sigla, \n"
+                        + "  t_organograma.nome_org\n"
+                        + "FROM \n"
+                        + "  e_pontows.t_hierarquia, \n"
+                        + "  e_pontows.t_funcionario_contrato, \n"
+                        + "  e_base.v_org_recursivo, \n"
+                        + "  e_base.t_organograma\n"
+                        + "WHERE \n"
+                        + "  t_funcionario_contrato.funcionario_contrato_pk = t_hierarquia.funcionario_contrato_fk AND\n"
+                        + "  v_org_recursivo.organograma_pk = t_hierarquia.organograma_fk AND\n"
+                        + "  t_organograma.organograma_pk = v_org_recursivo.org_ponto_fk AND\n"
+                        + "  t_hierarquia.tipo = 'S' AND \n"
+                        + "  t_funcionario_contrato.pessoa_fk = :idUsuario)) a\n"
+                        + "ORDER BY nome_org", "organogramaVO");
+
+        query.setParameter("idUsuario", idUsuario);
+
+        List<Organograma> organograma = (List<Organograma>) query.getResultList();
+        return organograma;
+    }
+
+    /**
+     * Lista as sub-unidades funcionais que um usuário esta lotado
+     *
+     */
+    @GET
+    @Path("funcionaispermitidas/{idUsuario}/{idOrganica}")
+    @Produces({"application/json"})
+    public List<Organograma> permissaoFuncionais(@PathParam("idUsuario") BigInteger idUsuario,
+            @PathParam("idOrganica") BigInteger idOrganica) throws SQLException {
+
+        Query query = getBusiness().getSesaDao().getEntityManager().
+                createNativeQuery("SELECT \n"
+                        + "  organograma_pk, sigla, nome_org\n"
+                        + "FROM \n"
+                        + "((SELECT \n"
+                        + "  v_org_recursivo.organograma_pk, \n"
+                        + "  v_org_recursivo.nome_org, \n"
+                        + "  v_org_recursivo.sigla\n"
+                        + "FROM \n"
+                        + "  e_base.v_org_recursivo\n"
+                        + "WHERE \n"
+                        + "  v_org_recursivo.org_ponto_fk = :idOrganica AND :idOrganica IN (SELECT \n"
+                        + "  t_unidade_organica_item.organograma_fk\n"
+                        + "FROM \n"
+                        + "  e_pontows.t_hierarquia, \n"
+                        + "  e_pontows.t_funcionario_contrato, \n"
+                        + "  e_pontows.t_unidade_organica, \n"
+                        + "  e_pontows.t_unidade_organica_item\n"
+                        + "WHERE \n"
+                        + "  t_funcionario_contrato.funcionario_contrato_pk = t_hierarquia.funcionario_contrato_fk AND\n"
+                        + "  t_unidade_organica.organograma_fk = t_hierarquia.organograma_fk AND\n"
+                        + "  t_unidade_organica.unidade_organica_pk = t_unidade_organica_item.unidade_organica_fk AND\n"
+                        + "  t_hierarquia.tipo in ('U','G') AND \n"
+                        + "  t_funcionario_contrato.pessoa_fk = :idUsuario))\n"
+                        + "UNION\n"
+                        + "(SELECT \n"
+                        + "  t_organograma.organograma_pk, \n"
+                        + "  t_organograma.nome_org, \n"
+                        + "  t_organograma.sigla\n"
+                        + "FROM \n"
+                        + "  e_pontows.t_hierarquia, \n"
+                        + "  e_pontows.t_funcionario_contrato, \n"
+                        + "  e_base.t_organograma, \n"
+                        + "  e_base.v_org_recursivo\n"
+                        + "WHERE \n"
+                        + "  t_funcionario_contrato.funcionario_contrato_pk = t_hierarquia.funcionario_contrato_fk AND\n"
+                        + "  t_organograma.organograma_pk = t_hierarquia.organograma_fk AND\n"
+                        + "  v_org_recursivo.organograma_pk = t_organograma.organograma_pk AND\n"
+                        + "  t_hierarquia.tipo = 'S' AND \n"
+                        + "  t_funcionario_contrato.pessoa_fk = :idUsuario AND \n"
+                        + "  v_org_recursivo.org_ponto_fk = :idOrganica )) a\n"
+                        + "ORDER BY sigla", "organogramaVO");
+
+        query.setParameter("idUsuario", idUsuario);
+        query.setParameter("idOrganica", idOrganica);
+
+        List<Organograma> organograma = (List<Organograma>) query.getResultList();
+        return organograma;
+    }
+
+    @POST
+    @Consumes({"application/json"})
+    @Produces({"application/json"})
+    @Override
+    public Organograma create(Organograma entity) {
+        return super.create(entity);
+    }
+    
+    @PUT
+    @Override
+    @Consumes({"application/json"})
+    @Produces({"application/json"})
+    public Organograma edit(Organograma entity) {
+        return super.edit(entity);
+    }
+
+    @DELETE
+    @Path("{id}")
+    public void remove(@PathParam("id") BigInteger id) {
+        super.remove(super.find(id));
+    }
+    
+    @TransactionAttribute(NOT_SUPPORTED)
+    @GET
+    @Path("filtro")
+    @Produces({"application/json"})
+    public PaginacaoVO organogramaFiltro(@QueryParam("start") int start,
+            @QueryParam("length") int length, @QueryParam("search[value]") String descricao,
+            @QueryParam("draw") int draw) {
+        
+        PaginacaoVO paginacaoVO = new PaginacaoVO();
+        List<Organograma> data = null; // Somente os dados que serão mostrados
+        List<Organograma> recordsFiltered = null; // O total dos filtrados 
+        Query query = null;
+        Query queryTodosRegistros = null;
+        
+        String consulta = "FROM Organograma WHERE 1=1 ";
+        
+        if (descricao != null && !descricao.equals("")) {
+            consulta += " AND nomeOrg like :descricao";            
+        }
+        
+        query = getEntityManager().createQuery(consulta); 
+        queryTodosRegistros = getEntityManager().createQuery("SELECT COUNT(*) "+ consulta);
+        
+        if (descricao != null && !descricao.equals("")) {           
+            query.setParameter("descricao", "%"+  descricao.toUpperCase() +"%" );
+            queryTodosRegistros.setParameter("descricao", "%"+  descricao.toUpperCase() +"%" );
+        }
+                
+        query.setMaxResults(length);
+        query.setFirstResult(start);
+
+        data = query.getResultList();
+        Long filtrados = (Long)queryTodosRegistros.getSingleResult();
+
+        paginacaoVO.setDraw(draw++);
+        paginacaoVO.setRecordsTotal(filtrados.intValue()); //paginacaoVO.setRecordsTotal(recordsTotal.size());
+        paginacaoVO.setRecordsFiltered(filtrados.intValue()); //paginacaoVO.setRecordsFiltered(recordsFiltered.size());
+        paginacaoVO.setData(data);
+
+        
+        return paginacaoVO;
+    }
+}

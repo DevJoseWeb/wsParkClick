@@ -1,0 +1,552 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package br.gov.ce.saude.ponto.servico;
+
+import br.gov.ce.autenticacao.service.AbstractFacade;
+import br.gov.ce.saude.autenticacao.exception.ServiceException;
+import br.gov.ce.saude.ponto.entidade.BatidaEscalaRel;
+import br.gov.ce.saude.ponto.vo.BatidaEscalaVO;
+import br.gov.ce.saude.ponto.vo.EscalaMensalVO;
+import br.gov.ce.saude.ponto.vo.EscalaVO;
+import java.math.BigInteger;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.GregorianCalendar;
+import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import javax.ejb.Stateless;
+import javax.persistence.Query;
+import javax.ws.rs.GET;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
+import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
+
+/**
+ *
+ * @author joao
+ */
+@Stateless
+@Path("escala")
+public class EscalaFacadeREST extends AbstractFacade<BatidaEscalaRel, ServiceException> {
+
+    public static final SimpleDateFormat hms = new SimpleDateFormat("HH:mm");
+
+    public EscalaFacadeREST() {
+        super(BatidaEscalaRel.class);
+    }
+
+    @GET
+    @Path("{batidaPk}")
+    @Produces("application/json")
+    public BatidaEscalaRel find(@PathParam("batidaPk") BigInteger batidaPk) {
+        return super.find(batidaPk);
+    }
+
+    /**
+     * Lista as escalas do mês
+     *
+     * @param matricula
+     * @param mes
+     * @param ano
+     * @return escalas
+     * @throws Exception
+     */
+    private List<EscalaVO> listaEscala(String matricula, String mes, String ano) throws Exception {
+        String consulta = "SELECT \n"
+                + "  t_escala_item.entrada, \n"
+                + "  t_escala_item.saida\n"
+                + "FROM \n"
+                + "  e_pontows.t_funcionario_horario, \n"
+                + "  e_pontows.t_funcionario_contrato, \n"
+                + "  e_pontows.t_escala_item\n"
+                + "WHERE \n"
+                + "  t_funcionario_contrato.funcionario_contrato_pk = t_funcionario_horario.funcionario_contrato_fk AND\n"
+                + "  t_escala_item.funcionario_horario_fk = t_funcionario_horario.funcionario_horario_pk AND\n"
+                + "  t_funcionario_contrato.matricula = :matricula\n"
+                + "  AND to_char(entrada,'MM/yyyy') = to_char(CAST( :dataMes as timestamp), 'MM/yyyy')\n"
+                + "ORDER BY t_escala_item.entrada";
+
+        Query query = getEntityManager().
+                createNativeQuery(consulta, "batidaEscala");
+        query.setParameter("matricula", matricula);
+        query.setParameter("dataMes", primeiroDiaMes(mes, ano));
+
+        List<EscalaVO> escalas = query.getResultList();
+
+        return escalas;
+    }
+
+    /**
+     * Retorna uma possivel data de saida
+     *
+     * @param escala
+     * @param horarios
+     * @return
+     */
+    private Date calculaDataSaida(EscalaVO escala, List<BatidaEscalaVO> horarios) throws Exception {
+        SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
+
+        for (BatidaEscalaVO batida : horarios) { // Ver B4, B3, B2 para saida
+            if (sdf.format(batida.getDataBatida()).equals(sdf.format(escala.getEntrada()))) {
+                return batida.getB2();
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Processa usuarios com escala
+     *
+     * @param horarios
+     * @param escalas
+     */
+    private List<BatidaEscalaVO> processaEscalas(List<BatidaEscalaVO> horarios, List<EscalaVO> escalas) throws Exception {
+        SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
+
+        Long deveTrabalharAnt = null;
+        Long horasTrabalhadasAnt = null;
+
+        List<BatidaEscalaVO> batidaVOs = new ArrayList<BatidaEscalaVO>();
+
+        //1 caso: entrada e saida em dias diferentes
+        for (BatidaEscalaVO batida : horarios) {
+
+            Long deveTrabalhar = tempoTrabalhadoFixo(batida.getSaida(), batida.getEntrada()); // Saida - Entrada 12hrs                    
+
+            Long horasTrabalhadas = tempoTrabalhado1(batida.getB2(), batida.getB1(), batida.getSaida(), batida.getEntrada()); // Batida 2 - Batida 1                    
+
+            Long saldo = null;
+            if ((deveTrabalhar) == 0) {
+                saldo = Long.valueOf("0");
+            } else {
+                saldo = horasTrabalhadas - deveTrabalhar;
+            }
+
+            batida.setTotal(longToDate(horasTrabalhadas));
+            batida.setSaldo(longToDate(saldo));
+            batida.setDeveTrabalhar(deveTrabalhar);
+            if (batida.getJustificativa() != null && batida.getJustificativa().length() > 1) {
+                batida.setJustificado(true);
+            }
+
+            deveTrabalharAnt = deveTrabalhar.longValue();
+            horasTrabalhadasAnt = horasTrabalhadas.longValue();
+
+        }
+
+        for (BatidaEscalaVO batida : horarios) {
+            BatidaEscalaVO batidaVO = preencheBatida(batida);
+            batidaVO.setTotal(batida.getTotal());
+            batidaVO.setSaldo(batida.getSaldo());
+
+            batidaVO.setTipo_justificativa(batida.getTipo_justificativa());
+            batidaVO.setJustificado_chefe(batida.getJustificado_chefe());
+            batidaVO.setTipo_justificativa_chefe(batida.getTipo_justificativa_chefe());
+            if ((batidaVO.getBatida1() != null && !batidaVO.getBatida1().equals(""))
+                    || batida.getDeveTrabalhar() != 0) {
+                batidaVOs.add(batidaVO);
+            }
+        }
+
+        return batidaVOs;
+    }
+
+    @GET
+    @Path("{tipoEscala}/{matricula}/{mes}/{ano}")
+    @Produces("application/json")
+    public List<BatidaEscalaVO> find(@PathParam("tipoEscala") String tipoEscala,
+            @PathParam("matricula") String matricula,
+            @PathParam("mes") String mes,
+            @PathParam("ano") String ano) throws Exception {
+
+        List<BatidaEscalaVO> batidaVOs = new ArrayList<BatidaEscalaVO>();
+
+        String consulta = "select cast(to_char(t_escala_item.entrada, 'DD-MM-YYYY') as date) as data, "
+                + "cast(EXTRACT( DOW FROM t_escala_item.entrada)+1 as integer) as dia_semana,\n"
+                + "batida_1,batida_2, t_escala_item.entrada, t_escala_item.saida, justificativa, "
+                
+                + "(SELECT CASE \n"
+                + "        WHEN br.justificativa_gestor_fk IS NOT NULL THEN TRUE\n"
+                + "        WHEN br.ocorrencia_processamento_fk IS NOT NULL THEN FALSE\n"
+                + "        END \n"
+                + " FROM e_pontows.t_batida_rel_escala br\n"
+                + " WHERE br.batida_rel_escala_pk = t_batida_rel_escala.batida_rel_escala_pk) as justificado_chefe, \n"
+                
+                + " (SELECT j.descricao\n"
+                + " FROM e_pontows.t_batida_rel_escala br, e_pontows.t_justificativa j\n"
+                + " WHERE br.batida_rel_escala_pk = t_batida_rel_escala.batida_rel_escala_pk AND \n"
+                + " br.justificativa_gestor_fk=j.justificativa_pk) as tipo_justificativa_chefe,\n"
+                
+                
+                + "(select descricao from e_pontows.t_justificativa where justificativa_pk = t_batida_rel_escala.tipo_justificativa_fk) as tipo_justificativa, "
+                + "batida_rel_escala_pk, t_escala_item.escala_item_pk \n"
+                + "from \n"
+                + "  e_pontows.t_funcionario_horario, \n"
+                + "  e_pontows.t_funcionario_contrato, \n"
+                + "  e_pontows.t_escala_item LEFT JOIN e_pontows.t_batida_rel_escala ON t_batida_rel_escala.escala_item_fk = t_escala_item.escala_item_pk,  \n"
+                + "  e_pontows.t_escala\n"
+                + "where \n"
+                + "  t_escala_item.funcionario_horario_fk = t_funcionario_horario.funcionario_horario_pk AND  \n"
+                + "  t_funcionario_horario.funcionario_contrato_fk = t_funcionario_contrato.funcionario_contrato_pk AND \n"
+                + "  t_escala.escala_pk = t_escala_item.escala_fk AND\n"
+                + "  t_escala.tipo = :tipoEscala AND\n"
+                + "  t_funcionario_contrato.matricula = :matricula AND t_funcionario_horario.ativo=true AND\n"
+                + "  cast(TO_CHAR(t_escala_item.entrada, 'YYYY-MM-DD') as date) between :primeiroDia and :ultimoDia\n"
+                + "  ORDER BY 5";
+
+        Query query = getEntityManager().createNativeQuery(consulta, "batidaEscalaPonto");
+
+        query.setParameter("tipoEscala", tipoEscala);
+        query.setParameter("matricula", matricula);
+        query.setParameter("primeiroDia", primeiroDiaMes(mes, ano));
+        query.setParameter("ultimoDia", ultimoDiaMesAtual(mes, ano));
+
+        List<BatidaEscalaVO> batidaRels = query.getResultList();
+
+        batidaVOs = processaEscalas(batidaRels, listaEscala(matricula, mes, ano));
+
+        return batidaVOs;
+    }
+
+    private BatidaEscalaVO preencheBatida(BatidaEscalaVO batida) {
+        BatidaEscalaVO batidaVO = new BatidaEscalaVO();
+        batidaVO.setBatidaEscalaRelPk(batida.getBatidaEscalaRelPk());
+        batidaVO.setData(dateToString(batida.getDataBatida()));
+        batidaVO.setDiaDaSemanaStr(pesquisarDiaSemana(batida.getDiaDaSemana()));
+
+        batidaVO.setBatida1(dateToString(batida.getB1()));
+        batidaVO.setBatida2(timeToString(batida.getB1()));
+        batidaVO.setBatida3(dateToString(batida.getB2()));
+        batidaVO.setBatida4(timeToString(batida.getB2()));
+
+        batidaVO.setEscalaItemPk(batida.getEscalaItemPk());
+        if (batida.getJustificativa() != null && batida.getJustificativa().length() > 1) {
+            batidaVO.setJustificado(true);
+            batidaVO.setJustificativa(batida.getJustificativa());
+        }
+
+        return batidaVO;
+    }
+
+    private Date ultimoDiaMesAtual(String mes, String ano) throws ParseException {
+        SimpleDateFormat sdf = new SimpleDateFormat("MM/yyyy");
+
+        Calendar cal = GregorianCalendar.getInstance();
+        try {
+            if (mes.length() == 1) {
+                mes = "0" + mes;
+            }
+            cal.setTime(sdf.parse(mes + "/" + ano));
+        } catch (ParseException ex) {
+            Logger.getLogger(EscalaFacadeREST.class.getName()).log(Level.SEVERE, null, ex);
+        }
+
+        int dia = 28;
+        if (sdf.format(new Date()).equals(mes + "/" + ano)) {
+            Calendar calAtual = Calendar.getInstance();
+            calAtual.setTime(new Date());
+            dia = calAtual.get(Calendar.DAY_OF_MONTH);
+        } else {
+            dia = cal.getActualMaximum(Calendar.DAY_OF_MONTH);
+        }
+
+        String data = ano + "-" + mes + "-" + dia;
+
+        SimpleDateFormat sdfData = new SimpleDateFormat("yyyy-MM-dd");
+        return sdfData.parse(data);
+    }
+
+    private Date ultimoDiaMes(String mes, String ano) throws ParseException {
+        SimpleDateFormat sdf = new SimpleDateFormat("MM/yyyy");
+
+        Calendar cal = GregorianCalendar.getInstance();
+        try {
+            cal.setTime(sdf.parse(mes + "/" + ano));
+        } catch (ParseException ex) {
+            Logger.getLogger(EscalaFacadeREST.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        int dia = cal.getActualMaximum(Calendar.DAY_OF_MONTH);
+
+        String data = ano + "-" + mes + "-" + dia;
+
+        SimpleDateFormat sdfData = new SimpleDateFormat("yyyy-MM-dd");
+        return sdfData.parse(data);
+    }
+
+    private Date primeiroDiaMes(String mes, String ano) throws ParseException {
+        String data = ano + "-" + mes + "-01";
+        SimpleDateFormat sdfData = new SimpleDateFormat("yyyy-MM-dd");
+        return sdfData.parse(data);
+    }
+
+    private String timeToString(Date data) {
+        SimpleDateFormat sdf = new SimpleDateFormat("HH:mm");
+        if (data != null) {
+            return sdf.format(data);
+        }
+        return "";
+    }
+
+    private String dateToString(Date data) {
+        SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
+        if (data != null) {
+            return sdf.format(data);
+        }
+        return "";
+    }
+
+    private Date tolerancia15Min(Date horaInicial, Date deveEntrar) throws ParseException {
+
+        if (horaInicial != null && deveEntrar != null) {
+            //horaInicial = hms.parse(hms.format(horaInicial));
+            //deveEntrar = hms.parse(hms.format(deveEntrar));
+
+            long intervalo = (horaInicial.getTime() - deveEntrar.getTime()) / 1000;
+            if (intervalo > 0 && intervalo < 16 * 60) {// Se passou a tolerancia de 15 min
+                return deveEntrar;
+            }
+        }
+
+        return horaInicial;
+    }
+
+    /**
+     * Realiza a subtração do trabalho realizado
+     *
+     * @param horaFinal
+     * @param horaInicial
+     * @return
+     */
+    private Long tempoTrabalhado1(Date horaFinal, Date horaInicial, Date deveSair, Date deveEntrar) throws ParseException {
+        Long tempoTrabalhado = new Long("0");
+
+        if (deveSair != null && deveEntrar != null
+                && horaFinal != null && horaInicial != null
+                && horaInicial.before(deveSair)
+                && horaFinal.after(deveEntrar)) { // Se tem horaio a ser cumprido
+
+            horaInicial = tolerancia15Min(horaInicial, deveEntrar);
+
+            Date hora1 = null;
+            Date hora2 = null;
+
+            Calendar deveBaterInicial = Calendar.getInstance();
+            deveBaterInicial.setTime(deveEntrar);
+            deveBaterInicial.add(Calendar.HOUR, -1);
+
+            Calendar deveBaterFinal = Calendar.getInstance();
+            deveBaterFinal.setTime(deveSair);
+            deveBaterFinal.add(Calendar.HOUR, 1);
+
+            deveEntrar = deveBaterInicial.getTime();
+            deveSair = deveBaterFinal.getTime();
+
+            if (horaInicial.before(deveEntrar)) {
+                hora1 = deveEntrar;
+            } else {
+                hora1 = horaInicial;
+            }
+
+            if (horaFinal.after(deveSair)) {
+                hora2 = deveSair;
+            } else {
+                hora2 = horaFinal;
+            }
+
+            tempoTrabalhado = hora2.getTime() - hora1.getTime();
+        }
+
+        return tempoTrabalhado;
+    }
+
+    /**
+     * Realiza a subtração do trabalho realizado
+     *
+     * @param horaFinal
+     * @param horaInicial
+     * @return
+     */
+    private Long tempoTrabalhadoFixo(Date horaFinal, Date horaInicial) {
+        if (horaFinal == null || horaInicial == null) {
+            return (long) 0;
+        }
+
+        return horaFinal.getTime() - horaInicial.getTime();
+    }
+
+    /**
+     * Retorna String de horas e minutos
+     *
+     * @param diferenca
+     * @return
+     */
+    public static String longToDate(Long diferenca) {
+
+        try {
+            SimpleDateFormat sdf = new SimpleDateFormat("HH:mm");
+
+            long horas = diferenca / 3600000;
+            long minutos = (diferenca - horas * 3600000) / 60000;
+
+            String saldo = ((horas < 0 || minutos < 0) ? "-" : "") + (Math.abs(horas) < 10 ? "0" : "") + Math.abs(horas) + ":"
+                    + (Math.abs(minutos) < 10 ? "0" : "") + Math.abs(minutos);
+
+            return saldo;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "0";
+        }
+    }
+
+    /**
+     * Domingo:1 Sabado:7 Como a data do java e a do banco diferem é preciso
+     * ajustar a do java ao do banco assim como no calculo realizado abaixo.
+     *
+     * @param data
+     * @return
+     */
+    private Integer diaDaSemana(Date data) {
+        Calendar cal = Calendar.getInstance();
+        cal.setTime(data);
+        //return (cal.get(Calendar.DAY_OF_WEEK) - 1) % 7;
+        return cal.get(Calendar.DAY_OF_WEEK);
+    }
+
+    /**
+     * Domingo:1 Segundo:2 Terça:3 Quarta:4 Quinta:5 Sexta:6 Sabado:7;
+     *
+     * @param diaSemana
+     * @return
+     */
+    public String retornarDiaSemana(int ano, int mes, int dia) {
+        Calendar calendario = new GregorianCalendar(ano, mes - 1, dia);
+        int diaSemana = calendario.get(Calendar.DAY_OF_WEEK);
+        return pesquisarDiaSemana(diaSemana);
+    }
+
+    public String pesquisarDiaSemana(int _diaSemana) {
+        String diaSemana = null;
+        switch (_diaSemana) {
+            case 1: {
+                diaSemana = "Domingo";
+                break;
+            }
+            case 2: {
+                diaSemana = "Segunda";
+                break;
+            }
+            case 3: {
+                diaSemana = "Terça";
+                break;
+            }
+            case 4: {
+                diaSemana = "Quarta";
+                break;
+            }
+            case 5: {
+                diaSemana = "Quinta";
+                break;
+            }
+            case 6: {
+                diaSemana = "Sexta";
+                break;
+            }
+            case 7: {
+                diaSemana = "Sábado";
+                break;
+            }
+
+        }
+        return diaSemana;
+
+    }
+
+    @GET
+    @Path("escalamensal/{pessoaFk}/{funcao}/{mes}/{ano}")
+    @Produces("application/json")
+    public List<EscalaMensalVO> listarEscala(@PathParam("pessoaFk") BigInteger pessoaFk,
+            @PathParam("funcao") BigInteger funcao,
+            @PathParam("mes") int mes, @PathParam("ano") int ano,
+            @QueryParam("idUnidade") BigInteger idUnidade, 
+            @QueryParam("idFuncional") BigInteger idFuncional) throws Exception {
+
+        String consulta = "SELECT fh.funcionario_horario_pk AS id,\n"
+                + "       fc.matricula,\n"
+                + "\n"
+                + "  (SELECT nome\n"
+                + "   FROM e_base.t_pessoa\n"
+                + "   WHERE pessoa_pk = fc.pessoa_fk) AS nome,\n"
+                + "\n"
+                + "  (SELECT descricao\n"
+                + "   FROM e_pontows.t_funcao\n"
+                + "   WHERE funcao_pk = fc.funcao_fk) AS funcao,\n"
+                + "       ei.escala_item_pk AS idescala,\n"
+                + "       entrada,\n"
+                + "       saida,\n"
+                + "       ei.legenda_escala_fk AS idlegenda,\n"
+                + "\n"
+                + "  (SELECT sigla\n"
+                + "   FROM e_pontows.t_legenda_escala\n"
+                + "   WHERE legenda_escala_pk = ei.legenda_escala_fk) AS legenda\n"
+                + "FROM e_pontows.t_funcionario_contrato fc,\n"
+                + "     e_pontows.t_funcionario_horario fh\n"
+                + "LEFT JOIN e_pontows.t_escala_item ei ON ei.funcionario_horario_fk = fh.funcionario_horario_pk\n"
+                + "AND cast(entrada AS date) >= :inicio \n"
+                + "AND cast(entrada AS date) <= :fim \n"
+                + "WHERE fc.funcionario_contrato_pk = fh.funcionario_contrato_fk\n"
+                + "  AND (fc.unidade_organica_fk IN\n"
+                + "         ( SELECT t_unidade_organica_item.organograma_fk\n"
+                + "          FROM e_pontows.t_hierarquia,\n"
+                + "               e_pontows.t_funcionario_contrato,\n"
+                + "               e_pontows.t_unidade_organica_item,\n"
+                + "               e_pontows.t_unidade_organica\n"
+                + "          WHERE t_funcionario_contrato.funcionario_contrato_pk = t_hierarquia.funcionario_contrato_fk\n"
+                + "            AND t_unidade_organica_item.unidade_organica_fk = t_unidade_organica.unidade_organica_pk\n"
+                + "            AND t_unidade_organica.organograma_fk = t_hierarquia.organograma_fk\n"
+                + "            AND t_funcionario_contrato.pessoa_fk = :pessoaFk \n"
+                + "            AND t_hierarquia.ativo = TRUE\n"
+                + "            AND t_hierarquia.tipo in ('U', 'G') )\n"
+                + "       OR fc.unidade_funcional_fk IN\n"
+                + "         (SELECT t_hierarquia.organograma_fk\n"
+                + "          FROM e_pontows.t_hierarquia,\n"
+                + "               e_pontows.t_funcionario_contrato\n"
+                + "          WHERE t_funcionario_contrato.funcionario_contrato_pk = t_hierarquia.funcionario_contrato_fk\n"
+                + "            AND t_funcionario_contrato.pessoa_fk = :pessoaFk\n"
+                + "            AND t_hierarquia.ativo = TRUE\n"
+                + "            AND t_hierarquia.tipo = 'S' ) )\n"
+                + "  AND funcao_fk = :funcao \n"
+                + ((idUnidade != null)?" AND fc.unidade_organica_fk = "+idUnidade.intValue()+"\n":"\n")
+                + ((idFuncional != null)?" AND fc.unidade_funcional_fk = "+idFuncional.intValue()+"\n":"\n")
+                + "ORDER BY matricula,\n"
+                + "         entrada";
+
+        getEntityManager().clear();
+        Query query = getEntityManager().createNativeQuery(consulta, "escalaMensalVO");
+        Calendar c = Calendar.getInstance();
+        c.set(ano, mes - 1, 1);
+        Date dataini = c.getTime();
+        c.setTime(dataini);
+        c.add(Calendar.MONTH, 1);
+        c.add(Calendar.DATE, -1);
+        Date datafim = c.getTime();
+        
+        query.setParameter("inicio", dataini);
+        query.setParameter("fim", datafim);
+        query.setParameter("pessoaFk", pessoaFk);
+        query.setParameter("funcao", funcao);
+        
+        List<EscalaMensalVO> escalas = query.getResultList();
+
+        return escalas;
+    }
+
+}

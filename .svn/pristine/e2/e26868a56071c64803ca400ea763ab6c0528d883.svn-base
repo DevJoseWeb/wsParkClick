@@ -1,0 +1,102 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package br.gov.ce.saude.ponto.vo;
+
+import java.io.Serializable;
+import java.math.BigInteger;
+
+/**
+ *
+ * @author joao
+ */
+public class JustificativaGestorVO implements Serializable {
+    private static final long serialVersionUID = 2889991177168461239L;
+    
+    private BigInteger funcionarioContratoPk;
+    private String matricula;
+    private String nome;
+    private String unidade;
+    private BigInteger ocorrencias;
+    
+    private Boolean diarista;
+    private Boolean plantonista;
+    private Boolean horaExtra;
+
+    public JustificativaGestorVO(BigInteger funcionarioContratoPk, String matricula, String nome, String unidade, BigInteger ocorrencias, Boolean diarista, Boolean plantonista, Boolean horaExtra) {
+        this.funcionarioContratoPk = funcionarioContratoPk;
+        this.matricula = matricula;
+        this.nome = nome;
+        this.unidade = unidade;
+        this.ocorrencias = ocorrencias;
+        this.diarista = diarista;
+        this.plantonista = plantonista;
+        this.horaExtra = horaExtra;
+    }
+
+    public BigInteger getFuncionarioContratoPk() {
+        return funcionarioContratoPk;
+    }
+
+    public void setFuncionarioContratoPk(BigInteger funcionarioContratoPk) {
+        this.funcionarioContratoPk = funcionarioContratoPk;
+    }
+
+    public String getMatricula() {
+        return matricula;
+    }
+
+    public void setMatricula(String matricula) {
+        this.matricula = matricula;
+    }
+
+    public String getNome() {
+        return nome;
+    }
+
+    public void setNome(String nome) {
+        this.nome = nome;
+    }
+
+    public String getUnidade() {
+        return unidade;
+    }
+
+    public void setUnidade(String unidade) {
+        this.unidade = unidade;
+    }
+
+    public BigInteger getOcorrencias() {
+        return ocorrencias;
+    }
+
+    public void setOcorrencias(BigInteger ocorrencias) {
+        this.ocorrencias = ocorrencias;
+    }
+
+    public Boolean getDiarista() {
+        return diarista;
+    }
+
+    public void setDiarista(Boolean diarista) {
+        this.diarista = diarista;
+    }
+
+    public Boolean getPlantonista() {
+        return plantonista;
+    }
+
+    public void setPlantonista(Boolean plantonista) {
+        this.plantonista = plantonista;
+    }
+
+    public Boolean getHoraExtra() {
+        return horaExtra;
+    }
+
+    public void setHoraExtra(Boolean horaExtra) {
+        this.horaExtra = horaExtra;
+    }    
+}

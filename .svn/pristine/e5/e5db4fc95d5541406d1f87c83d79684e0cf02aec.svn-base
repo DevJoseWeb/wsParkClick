@@ -1,0 +1,494 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package br.gov.ce.saude.ponto.entidade;
+
+import br.gov.ce.auditoriaws.entidade.EntidadeBase;
+import br.gov.ce.autenticacao.core.SesaModel;
+import br.gov.ce.saude.ponto.util.JsonDateDeserializer;
+import br.gov.ce.saude.ponto.util.JsonDateSerializer;
+import br.gov.ce.saude.ponto.vo.BatePontoVO;
+import br.gov.ce.saude.ponto.vo.DadosUsuario;
+import br.gov.ce.saude.ponto.vo.UsuarioVO;
+import java.math.BigInteger;
+import java.util.Date;
+import javax.persistence.Basic;
+import javax.persistence.Column;
+import javax.persistence.ColumnResult;
+import javax.persistence.ConstructorResult;
+import javax.persistence.Entity;
+import javax.persistence.GeneratedValue;
+import javax.persistence.GenerationType;
+import javax.persistence.Id;
+import javax.persistence.SequenceGenerator;
+import javax.persistence.SqlResultSetMapping;
+import javax.persistence.SqlResultSetMappings;
+import javax.persistence.Table;
+import javax.persistence.Temporal;
+import javax.persistence.TemporalType;
+import javax.validation.constraints.NotNull;
+import javax.validation.constraints.Size;
+import javax.xml.bind.annotation.XmlRootElement;
+import org.codehaus.jackson.map.annotate.JsonDeserialize;
+import org.codehaus.jackson.map.annotate.JsonSerialize;
+
+/**
+ *
+ * @author esmayktillesse
+ */
+@Entity
+
+@XmlRootElement
+@SequenceGenerator(name = "seq_pessoa", sequenceName = "e_base.seq_pessoa",
+        initialValue = 1, allocationSize = 1)
+@SqlResultSetMappings({
+    @SqlResultSetMapping(
+            name = "usuarioToken",
+            classes = {
+                @ConstructorResult(
+                        targetClass = UsuarioVO.class,
+                        columns = {
+                            @ColumnResult(name = "login"),
+                            @ColumnResult(name = "matricula"),
+                            @ColumnResult(name = "nome")
+                        }
+                )
+            }
+    ),
+
+    @SqlResultSetMapping(
+            name = "usuarioHierarquia",
+            classes = {
+                @ConstructorResult(
+                        targetClass = UsuarioVO.class,
+                        columns = {
+                            @ColumnResult(name = "pessoa_pk"),
+                            @ColumnResult(name = "nome"),
+                            @ColumnResult(name = "cpf"),
+                            @ColumnResult(name = "login"),
+                            @ColumnResult(name = "usuario_pk"),}
+                )
+            }
+    ),
+    @SqlResultSetMapping(
+            name = "buscaFuncPorUnidade",
+            classes = {
+                @ConstructorResult(
+                        targetClass = BatePontoVO.class,
+                        columns = {
+                            @ColumnResult(name = "funcionario_contrato_pk"),
+                            @ColumnResult(name = "matricula"),
+                            @ColumnResult(name = "nome"),
+                            @ColumnResult(name = "categoria"),
+                            @ColumnResult(name = "id_unidade"),
+                            @ColumnResult(name = "idsetor"),
+                            @ColumnResult(name = "unidade"),
+                            @ColumnResult(name = "setor"),}
+                )
+            }
+    ),
+    @SqlResultSetMapping(
+            name = "buscaDadosUsuario",
+            classes = {
+                @ConstructorResult(
+                        targetClass = DadosUsuario.class,
+                        columns = {
+                            @ColumnResult(name = "matricula"),
+                            @ColumnResult(name = "nome"),
+                            @ColumnResult(name = "cargo"),
+                            @ColumnResult(name = "vinculo"),
+                            @ColumnResult(name = "unid_org"),
+                            @ColumnResult(name = "unid_func")
+                        }
+                )
+            }
+    )
+})
+@Table(name = "t_pessoa", schema = "e_base")
+public class Funcionario extends EntidadeBase implements SesaModel {
+
+    private static final long serialVersionUID = -1722053759748614562L;
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.AUTO, generator = "seq_pessoa")
+    @Basic(optional = false)
+    @Column(name = "pessoa_pk")
+    private BigInteger id;
+
+    @Basic(optional = false)
+    @NotNull
+    @Size(min = 1, max = 100)
+    @Column(name = "nome")
+    private String nome;
+
+    @Basic(optional = false)
+    @NotNull
+    @Size(min = 1, max = 11)
+    @Column(name = "cpf")
+    private String cpf;
+
+    @Column(name = "estado_civil")
+    private Character estadoCivil;
+
+    @Size(max = 100)
+    @Column(name = "mae")
+    private String mae;
+
+    @Size(max = 100)
+    @Column(name = "pai")
+    private String pai;
+
+    @Size(max = 100)
+    @Column(name = "endereco")
+    private String endereco;
+
+    @Size(max = 40)
+    @Column(name = "complemento")
+    private String complemento;
+
+    @Size(max = 80)
+    @Column(name = "bairro")
+    private String bairro;
+
+    @Size(max = 8)
+    @Column(name = "cep")
+    private String cep;
+
+    @Size(max = 40)
+    @Column(name = "cidade")
+    private String cidade;
+
+    @Size(max = 40)
+    @Column(name = "estado")
+    private String estado;
+
+    @Size(max = 8)
+    @Column(name = "ctps_numero")
+    private String ctpsNumero;
+
+    @Size(max = 5)
+    @Column(name = "ctps_serie")
+    private String ctpsSerie;
+
+    @Size(max = 11)
+    @Column(name = "pis")
+    private String pis;
+
+    @Size(max = 15)
+    @Column(name = "titulo_eleitor")
+    private String tituloEleitor;
+
+    @Size(max = 3)
+    @Column(name = "titulo_zona")
+    private String tituloZona;
+
+    @Size(max = 4)
+    @Column(name = "titulo_secao")
+    private String tituloSecao;
+
+    @Size(max = 15)
+    @Column(name = "rg")
+    private String rg;
+
+    @JsonSerialize(using = JsonDateSerializer.class)
+    @JsonDeserialize(using = JsonDateDeserializer.class)
+    @Column(name = "rg_expedicao")
+    @Temporal(TemporalType.DATE)
+    private Date rgExpedicao;
+
+    @Size(max = 10)
+    @Column(name = "rg_expedidor")
+    private String rgExpedidor;
+
+    @Size(max = 2)
+    @Column(name = "rg_estado_expedidor")
+    private String rgEstadoExpedidor;
+
+    @Column(name = "sexo")
+    private Character sexo;
+
+    @JsonSerialize(using = JsonDateSerializer.class)
+    @JsonDeserialize(using = JsonDateDeserializer.class)
+    @Column(name = "nascimento")
+    @Temporal(TemporalType.DATE)
+    private Date nascimento;
+
+    @Size(max = 11)
+    @Column(name = "telefone")
+    private String telefone;
+
+    @Size(max = 25)
+    @Column(name = "nacionalidade")
+    private String nacionalidade;
+
+    @Column(name = "grau_instrucao_fk")
+    private BigInteger grauInstrucaoFk;
+
+//    @JsonIgnore
+//    @OneToMany(fetch = FetchType.EAGER, cascade = CascadeType.ALL, mappedBy = "funcionarioFk")
+//    private List<FuncionarioContrato> funcionarioContratoList;
+//    
+    public Funcionario() {
+    }
+
+    public Funcionario(BigInteger funcionarioPk) {
+        this.id = funcionarioPk;
+    }
+
+    public Funcionario(BigInteger funcionarioPk, String nome, String cpf) {
+        this.id = funcionarioPk;
+        this.nome = nome;
+        this.cpf = cpf;
+    }
+
+    public BigInteger getId() {
+        return id;
+    }
+
+    public void setId(BigInteger id) {
+        this.id = id;
+    }
+
+    public String getNome() {
+        return nome;
+    }
+
+    public void setNome(String nome) {
+        this.nome = nome;
+    }
+
+    public String getCpf() {
+        return cpf;
+    }
+
+    public void setCpf(String cpf) {
+        this.cpf = cpf;
+    }
+
+    public Character getEstadoCivil() {
+        return estadoCivil;
+    }
+
+    public void setEstadoCivil(Character estadoCivil) {
+        this.estadoCivil = estadoCivil;
+    }
+
+    public String getMae() {
+        return mae;
+    }
+
+    public void setMae(String mae) {
+        this.mae = mae;
+    }
+
+    public String getPai() {
+        return pai;
+    }
+
+    public void setPai(String pai) {
+        this.pai = pai;
+    }
+
+    public String getEndereco() {
+        return endereco;
+    }
+
+    public void setEndereco(String endereco) {
+        this.endereco = endereco;
+    }
+
+    public String getComplemento() {
+        return complemento;
+    }
+
+    public void setComplemento(String complemento) {
+        this.complemento = complemento;
+    }
+
+    public String getBairro() {
+        return bairro;
+    }
+
+    public void setBairro(String bairro) {
+        this.bairro = bairro;
+    }
+
+    public String getCep() {
+        return cep;
+    }
+
+    public void setCep(String cep) {
+        this.cep = cep;
+    }
+
+    public String getCidade() {
+        return cidade;
+    }
+
+    public void setCidade(String cidade) {
+        this.cidade = cidade;
+    }
+
+    public String getEstado() {
+        return estado;
+    }
+
+    public void setEstado(String estado) {
+        this.estado = estado;
+    }
+
+    public String getCtpsNumero() {
+        return ctpsNumero;
+    }
+
+    public void setCtpsNumero(String ctpsNumero) {
+        this.ctpsNumero = ctpsNumero;
+    }
+
+    public String getCtpsSerie() {
+        return ctpsSerie;
+    }
+
+    public void setCtpsSerie(String ctpsSerie) {
+        this.ctpsSerie = ctpsSerie;
+    }
+
+    public String getPis() {
+        return pis;
+    }
+
+    public void setPis(String pis) {
+        this.pis = pis;
+    }
+
+    public String getTituloEleitor() {
+        return tituloEleitor;
+    }
+
+    public void setTituloEleitor(String tituloEleitor) {
+        this.tituloEleitor = tituloEleitor;
+    }
+
+    public String getTituloZona() {
+        return tituloZona;
+    }
+
+    public void setTituloZona(String tituloZona) {
+        this.tituloZona = tituloZona;
+    }
+
+    public String getTituloSecao() {
+        return tituloSecao;
+    }
+
+    public void setTituloSecao(String tituloSecao) {
+        this.tituloSecao = tituloSecao;
+    }
+
+    public String getRg() {
+        return rg;
+    }
+
+    public void setRg(String rg) {
+        this.rg = rg;
+    }
+
+    public Date getRgExpedicao() {
+        return rgExpedicao;
+    }
+
+    public void setRgExpedicao(Date rgExpedicao) {
+        this.rgExpedicao = rgExpedicao;
+    }
+
+    public String getRgExpedidor() {
+        return rgExpedidor;
+    }
+
+    public void setRgExpedidor(String rgExpedidor) {
+        this.rgExpedidor = rgExpedidor;
+    }
+
+    public String getRgEstadoExpedidor() {
+        return rgEstadoExpedidor;
+    }
+
+    public void setRgEstadoExpedidor(String rgEstadoExpedidor) {
+        this.rgEstadoExpedidor = rgEstadoExpedidor;
+    }
+
+    public Character getSexo() {
+        return sexo;
+    }
+
+    public void setSexo(Character sexo) {
+        this.sexo = sexo;
+    }
+
+    public Date getNascimento() {
+        return nascimento;
+    }
+
+    public void setNascimento(Date nascimento) {
+        this.nascimento = nascimento;
+    }
+
+    public String getTelefone() {
+        return telefone;
+    }
+
+    public void setTelefone(String telefone) {
+        this.telefone = telefone;
+    }
+
+    public String getNacionalidade() {
+        return nacionalidade;
+    }
+
+    public void setNacionalidade(String nacionalidade) {
+        this.nacionalidade = nacionalidade;
+    }
+
+    public BigInteger getGrauInstrucaoFk() {
+        return grauInstrucaoFk;
+    }
+
+    public void setGrauInstrucaoFk(BigInteger grauInstrucaoFk) {
+        this.grauInstrucaoFk = grauInstrucaoFk;
+    }
+
+//     public List<FuncionarioContrato> getFuncionarioContratoList() {
+//        return funcionarioContratoList;
+//    }
+//
+//    public void setFuncionarioContratoList(List<FuncionarioContrato> funcionarioContratoList) {
+//        this.funcionarioContratoList = funcionarioContratoList;
+//    }
+    @Override
+    public int hashCode() {
+        int hash = 0;
+        hash += (id != null ? id.hashCode() : 0);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object object) {
+        // TODO: Warning - this method won't work in the case the id fields are not set
+        if (!(object instanceof Funcionario)) {
+            return false;
+        }
+        Funcionario other = (Funcionario) object;
+        if ((this.id == null && other.id != null) || (this.id != null && !this.id.equals(other.id))) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public String toString() {
+        return "br.gov.ce.saude.ponto.entidade.Funcionario[ funcionarioPk=" + id + " ]";
+    }
+
+}

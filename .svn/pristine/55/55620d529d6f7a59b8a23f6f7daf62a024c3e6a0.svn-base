@@ -1,0 +1,480 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package br.gov.ce.saude.ponto.servico;
+
+import br.gov.ce.autenticacao.service.AbstractFacade;
+import br.gov.ce.saude.autenticacao.exception.MessageInfo;
+import br.gov.ce.saude.autenticacao.exception.ServiceException;
+import br.gov.ce.saude.ponto.entidade.BatidaEscalaRel;
+import br.gov.ce.saude.ponto.entidade.Escala;
+import br.gov.ce.saude.ponto.entidade.EscalaItem;
+import br.gov.ce.saude.ponto.entidade.FuncionarioHorario;
+import br.gov.ce.saude.ponto.entidade.LegendaEscala;
+import br.gov.ce.saude.ponto.vo.EscalaItemVO;
+import java.math.BigInteger;
+import java.sql.SQLException;
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import javax.ejb.Stateless;
+import javax.persistence.Query;
+import javax.ws.rs.Consumes;
+import javax.ws.rs.DELETE;
+import javax.ws.rs.GET;
+import javax.ws.rs.HeaderParam;
+import javax.ws.rs.POST;
+import javax.ws.rs.PUT;
+import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
+import javax.ws.rs.Produces;
+
+/**
+ *
+ * @author joao
+ */
+@Stateless
+@Path("escalaitem")
+public class EscalaItemFacadeREST extends AbstractFacade<EscalaItem, ServiceException> {
+
+    static SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy HH:mm");
+    static SimpleDateFormat sdf_dmy = new SimpleDateFormat("dd/MM/yyyy");
+    static SimpleDateFormat sdf_hm = new SimpleDateFormat("HH:mm");
+    static SimpleDateFormat sdf_my = new SimpleDateFormat("MM/yyyy");
+
+    public EscalaItemFacadeREST() {
+        super(EscalaItem.class);
+    }
+
+    @DELETE
+    @Path("{id}")
+    @Consumes({"application/json"})
+    @Produces({"application/json"})
+    public MessageInfo remove(@PathParam("id") BigInteger id, @HeaderParam("loginAudit") String login) throws SQLException {
+
+        //EscalaItem escalaItem = super.find(id);
+        Query queryEscala = getBusiness().getSesaDao().getEntityManager().
+                createQuery("FROM EscalaItem where "
+                        + " id = :id");
+        queryEscala.setParameter("id", id);
+        EscalaItem escalaItem = (EscalaItem) queryEscala.getSingleResult();
+
+        //escalaItem.setLoginAudit(login);
+        Query query = null;
+        try {
+            query = getBusiness().getSesaDao().getEntityManager().
+                    createQuery("FROM BatidaEscalaRel where "
+                            + " escalaItemFk.id = :id");
+        } catch (SQLException ex) {
+            Logger.getLogger(EscalaItemFacadeREST.class.getName()).log(Level.SEVERE, null, ex);
+        }
+
+        query.setParameter("id", id);
+        List<BatidaEscalaRel> batidaEscalaRel = (List<BatidaEscalaRel>) query.getResultList();
+
+        if (batidaEscalaRel != null && batidaEscalaRel.size() > 0) {
+            getBusiness().addErrorMessage(null, "Existe batida realizada para esta escala.");
+            getBusiness().lancarException();
+        }
+
+        super.remove(escalaItem);
+
+        return new MessageInfo(null, "Item removido.");
+    }
+
+    @GET
+    @Path("listaescala/{tipoEscala}/{funcionarioHorario}/{data}")
+    @Produces({"application/json"})
+    public EscalaItemVO getHorario(@PathParam("tipoEscala") String tipoEscala,
+            @PathParam("funcionarioHorario") BigInteger funcionarioHorario,
+            @PathParam("data") String data) {
+
+        EscalaItemVO escalaItemVO = new EscalaItemVO();
+
+        try {
+
+            Query query = getBusiness().getSesaDao().getEntityManager().
+                    createQuery("FROM EscalaItem where funcionarioHorario.funcionarioContrato.id=:funcionarioHorario AND "
+                            + " escala.tipo=:tipoEscala AND TO_CHAR(entrada, 'MM/YYYY')=:data "
+                            + " order by entrada");
+
+            query.setParameter("tipoEscala", tipoEscala.charAt(0));
+            query.setParameter("funcionarioHorario", funcionarioHorario);
+            query.setParameter("data", data);
+
+            List<EscalaItem> escalaItens = (List<EscalaItem>) query.getResultList();
+
+            escalaItemVO.setFuncionarioHorarioFk(funcionarioHorario);
+            escalaItemVO.setTipoEscala(tipoEscala.charAt(0));
+            escalaItemVO.setEscalaItemList(new ArrayList<EscalaItemVO.EscalaItemData>());
+
+            for (EscalaItem escalaItem : escalaItens) {
+                EscalaItemVO.EscalaItemData escalaItemData = new EscalaItemVO.EscalaItemData();
+                escalaItemData.setEscalaItemPk(escalaItem.getId());
+
+                escalaItemData.setData_entrada(sdf_dmy.format(escalaItem.getEntrada()));
+                escalaItemData.setHora_entrada(sdf_hm.format(escalaItem.getEntrada()));
+                escalaItemData.setData_saida(sdf_dmy.format(escalaItem.getSaida()));
+                escalaItemData.setHora_saida(sdf_hm.format(escalaItem.getSaida()));
+
+                escalaItemVO.getEscalaItemList().add(escalaItemData);
+            }
+
+        } catch (Exception e) {
+            getBusiness().addErrorMessage(null, e.getMessage());
+            getBusiness().lancarException();
+        }
+
+        return escalaItemVO;
+    }
+
+    @POST
+    @Path("gravar")
+    @Consumes({"application/json"})
+    @Produces({"application/json"})
+    public EscalaItem gravar(EscalaItemVO entityVO) {
+        EscalaItem entity = new EscalaItem();
+
+        // Se o intervalo entre as datas é maior que 48 hrs
+        long intervalo = (entityVO.getSaida().getTime() - entityVO.getEntrada().getTime()) / 1000; // segundos
+        if (Math.abs(intervalo) > 60 * 60 * 48) { // Se intervalo maior que 48 hrs
+            getBusiness().addErrorMessage(null, "O horario : " + sdf.format(entityVO.getEntrada()) + " - " + sdf.format(entityVO.getSaida())
+                    + " supera 48hrs de trabalho");
+            getBusiness().lancarException();
+        }
+
+        // Se existe sobreposição não grava escala
+        Object[] horarioSobreposto = temSobreposicaoDeHorario(entityVO.getEntrada(), entityVO.getSaida(),
+                entityVO.getFuncionarioHorarioFk(), entityVO.getId());
+        if (horarioSobreposto != null) {
+            getBusiness().addErrorMessage(null, "A escala do usuario: " + sdf.format(entityVO.getEntrada()) + " - " + sdf.format(entityVO.getSaida())
+                    + ",\n intercala: " + sdf.format(horarioSobreposto[1]) + " - " + sdf.format(horarioSobreposto[2]));
+            getBusiness().lancarException();
+        }
+
+        // Se existe sobreposição de escala com horario diarista
+        Object[] escalaSobrepoeHorario = temEscalaSobrepoeHorario(entityVO.getEntrada(), entityVO.getSaida(), entityVO.getFuncionarioHorarioFk());
+        if (escalaSobrepoeHorario != null) {
+            getBusiness().addErrorMessage(null, " A escala do usuario: " + sdf.format(entityVO.getEntrada()) + " - " + sdf.format(entityVO.getSaida())
+                    + ",\n intercala o horário de diarista do usuário");
+            getBusiness().lancarException();
+        }
+
+        if (entityVO.getId() != null) {
+            Query query = getEntityManager().
+                    createQuery("FROM EscalaItem where id=:id");
+            query.setParameter("id", entityVO.getId());
+            entity = (EscalaItem) query.getSingleResult();
+        }
+        //entity.setId(entityVO.getId());
+        entity.setEntrada(entityVO.getEntrada());
+        entity.setSaida(entityVO.getSaida());
+        entity.setFuncionarioHorario(new FuncionarioHorario(entityVO.getFuncionarioHorarioFk()));
+        entity.setEscala(new Escala(entityVO.getEscala()));
+
+        Query query = getEntityManager().
+                createQuery("FROM LegendaEscala where id=:id");
+        query.setParameter("id", entityVO.getLegendaEscala());
+        entity.setLegendaEscala((LegendaEscala) query.getSingleResult());
+
+        super.create(entity);
+        getEntityManager().flush();
+        return entity;
+    }
+
+    /**
+     * Valida a intersecao dos horarios da escala entre eles
+     *
+     * @param escalaItemVO
+     */
+    private void validaIntercalacaoEscala(EscalaItemVO escalaItemVO) {
+
+        for (EscalaItemVO.EscalaItemData escalaItemData1 : escalaItemVO.getEscalaItemList()) {
+            for (EscalaItemVO.EscalaItemData escalaItemData2 : escalaItemVO.getEscalaItemList()) {
+                if (!escalaItemData1.equals(escalaItemData2)) {
+
+                    Date entrada1 = null;
+                    Date saida1 = null;
+                    Date entrada2 = null;
+                    Date saida2 = null;
+                    try {
+                        entrada1 = sdf.parse(escalaItemData1.getData_entrada() + " " + escalaItemData1.getHora_entrada());
+                        saida1 = sdf.parse(escalaItemData1.getData_saida() + " " + escalaItemData1.getHora_saida());
+
+                        entrada2 = sdf.parse(escalaItemData2.getData_entrada() + " " + escalaItemData2.getHora_entrada());
+                        saida2 = sdf.parse(escalaItemData2.getData_saida() + " " + escalaItemData2.getHora_saida());
+                    } catch (Exception e) {
+
+                    }
+                    if (entrada1.before(saida2) && entrada1.after(entrada2)
+                            || saida1.before(saida2) && entrada1.after(entrada2)) {
+                        getBusiness().addErrorMessage(null, " A escala do usuario: " + sdf.format(entrada1) + " - " + sdf.format(saida1)
+                                + ",\n intercala: " + sdf.format(entrada2) + " - " + sdf.format(saida2));
+                        getBusiness().lancarException();
+                    }
+                }
+            }
+        }
+    }
+
+    @POST
+    @Consumes({"application/json"})
+    @Produces({"application/json"})
+    public EscalaItemVO create(EscalaItemVO escalaItemVO) throws Exception {
+
+        BigInteger funcionarioHorarioFk = escalaItemVO.getFuncionarioHorarioFk();
+
+        Query query = getEntityManager().
+                createQuery("FROM FuncionarioHorario where id=:funcionarioHorarioFk");
+        query.setParameter("funcionarioHorarioFk", funcionarioHorarioFk);
+        FuncionarioHorario funcionarioHorario = (FuncionarioHorario) query.getSingleResult();
+
+        query = getBusiness().getSesaDao().getEntityManager().
+                createQuery("FROM Escala where tipo=:tipoEscala");
+        query.setParameter("tipoEscala", escalaItemVO.getTipoEscala());
+        Escala escala = (Escala) query.getSingleResult();
+        escala.setEscalaItemCollection(new ArrayList<EscalaItem>());
+
+        validaIntercalacaoEscala(escalaItemVO);
+        
+        List<EscalaItem> novosItens = new ArrayList<EscalaItem>();
+        for (EscalaItemVO.EscalaItemData escalaItemData : escalaItemVO.getEscalaItemList()) {
+
+            Date entrada = sdf.parse(escalaItemData.getData_entrada() + " " + escalaItemData.getHora_entrada());
+            Date saida = sdf.parse(escalaItemData.getData_saida() + " " + escalaItemData.getHora_saida());
+
+            if (temEntradaMenorQueSaida(entrada, saida)) {
+                getBusiness().addErrorMessage(null, "Existem uma hora de entrada menor que a saída em uma escala.");
+                getBusiness().lancarException();
+            }
+
+            // Se o intervalo entre as datas é maior que 48 hrs
+            long intervalo = (saida.getTime() - entrada.getTime()) / 1000; // segundos
+            if (Math.abs(intervalo) > 60 * 60 * 48) { // Se intervalo maior que 48 hrs
+                getBusiness().addErrorMessage(null, "O horario : " + sdf.format(entrada) + " - " + sdf.format(saida)
+                        + " supera 48hrs de trabalho");
+                getBusiness().lancarException();
+            }
+
+            Object[] horarioSobreposto = temSobreposicaoDeHorario(entrada, saida, funcionarioHorarioFk, escalaItemData.getEscalaItemPk());
+            if (horarioSobreposto != null) {
+                getBusiness().addErrorMessage(null, escalaItemData.getEscalaItemPk() + " A escala do usuario: " + sdf.format(entrada) + " - " + sdf.format(saida)
+                        + ",\n intercala: " + sdf.format(horarioSobreposto[1]) + " - " + sdf.format(horarioSobreposto[2]));
+                getBusiness().lancarException();
+            }
+
+            Object[] escalaSobrepoeHorario = temEscalaSobrepoeHorario(entrada, saida, funcionarioHorarioFk);
+            if (escalaSobrepoeHorario != null) {
+                getBusiness().addErrorMessage(null, " A escala do usuario: " + sdf.format(entrada) + " - " + sdf.format(saida)
+                        + ",\n intercala o horário de diarista do usuário");
+                getBusiness().lancarException();
+            }
+
+            try {
+                EscalaItem escalaItem = new EscalaItem();
+                if (escalaItemData.getEscalaItemPk() == null) { // Criar nova matricula
+
+                    escalaItem.setEntrada(entrada);
+                    escalaItem.setSaida(saida);
+                    escalaItem.setFuncionarioHorario(funcionarioHorario);
+                    escalaItem.setEscala(escala);
+
+                    //escala.getEscalaItemCollection().add(escalaItem);
+                    novosItens.add(escalaItem);
+                    escalaItemData.setEscalaItemPk(escalaItem.getId());
+                } else { // Atualiza serviço
+                    query = getBusiness().getSesaDao().getEntityManager().
+                            createQuery("FROM EscalaItem where id=:escalaItemPk");
+                    query.setParameter("escalaItemPk", escalaItemData.getEscalaItemPk());
+                    escalaItem = (EscalaItem) query.getSingleResult();
+
+                    escalaItem.setEntrada(entrada);
+                    escalaItem.setSaida(saida);
+                    //super.create(escalaItem);
+                    escala.getEscalaItemCollection().add(escalaItem);
+                }
+
+            } catch (Exception e) {
+                getBusiness().addErrorMessage(null, "Não foi possível criar a escala do usuário.");
+                getBusiness().lancarException();
+            }
+        }
+
+        escala.getEscalaItemCollection().addAll(novosItens);
+        if (escala.getEscalaItemCollection() != null && escala.getEscalaItemCollection().size() > 0) {
+            getEntityManager().persist(escala);
+        }
+
+        return escalaItemVO;
+    }
+
+    private Boolean temEntradaMenorQueSaida(Date dataEntrada, Date dataSaida) {
+        Calendar entrada = Calendar.getInstance();
+        entrada.setTime(dataEntrada);
+
+        Calendar saida = Calendar.getInstance();
+        saida.setTime(dataSaida);
+
+        if (entrada.after(saida)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Existe sobreposiçao de horarios
+     *
+     * @param entrada
+     * @param saida
+     * @param funcionarioHorario
+     * @param escala
+     * @return
+     */
+    private Object[] temSobreposicaoDeHorario(Date entrada, Date saida, BigInteger funcionarioHorario, BigInteger escala) {
+        Query query = null;
+        List lista = null;
+
+        String consulta = " "
+                + "SELECT escala_item_pk, entrada, saida\n"
+                + "FROM\n"
+                + "(SELECT escala_item_pk, t_escala_item.entrada, t_escala_item.saida FROM \n"
+                + "  e_pontows.t_escala_item \n"
+                + "  WHERE \n"
+                + "  t_escala_item.funcionario_horario_fk = :funcionarioHorario) A\n"
+                + "WHERE \n"
+                + "((:entrada between entrada AND saida) OR \n"
+                + "                (:saida between entrada AND saida)) ";
+
+        if (escala != null) {
+            consulta += " AND escala_item_pk <> :escala ";
+        }
+
+        try {
+            query = getBusiness().getSesaDao().getEntityManager().
+                    createNativeQuery(consulta + " limit 1");
+
+            query.setParameter("funcionarioHorario", funcionarioHorario);
+            query.setParameter("entrada", entrada);
+            query.setParameter("saida", saida);
+
+            if (escala != null) {
+                query.setParameter("escala", escala);
+            }
+
+            lista = query.getResultList();
+
+        } catch (SQLException ex) {
+            getBusiness().addErrorMessage(null, "Não foi possível criar a escala do usuário: " + sdf.format(entrada) + " - " + sdf.format(saida));
+            getBusiness().lancarException();
+        }
+
+        if (lista != null && lista.size() > 0) {
+            return (Object[]) lista.get(0);
+        }
+
+        return null;
+    }
+
+    /**
+     *
+     *
+     * @param entrada
+     * @param saida
+     * @param funcionarioHorario
+     * @return
+     */
+    private Object[] temEscalaSobrepoeHorario(Date entrada, Date saida, BigInteger funcionarioHorario) {
+        Query query = null;
+        List lista = null;
+
+        String consulta = "SELECT                 \n"
+                + "  t_funcionario_horario.horario_fk,\n"
+                + "  t_horario_item.dia_semana,\n"
+                + "  t_horario_item.entrada_1,\n"
+                + "  t_horario_item.saida_1,\n"
+                + "  t_horario_item.entrada_2,\n"
+                + "  t_horario_item.saida_2  \n"
+                + "FROM   \n"
+                + "  e_pontows.t_funcionario_horario, \n"
+                + "  e_pontows.t_horario_item, \n"
+                + "  e_pontows.t_funcionario_contrato, \n"
+                + "  e_base.t_pessoa, \n"
+                + "  e_base.t_organograma\n"
+                + "WHERE   \n"
+                + "  t_horario_item.horario_fk = t_funcionario_horario.horario_fk AND\n"
+                + "  t_funcionario_contrato.pessoa_fk = t_pessoa.pessoa_pk AND\n"
+                + "  t_funcionario_contrato.funcionario_contrato_pk = t_funcionario_horario.funcionario_contrato_fk AND\n"
+                + "  t_funcionario_contrato.unidade_funcional_fk = t_organograma.organograma_pk AND \n"
+                + "  (t_horario_item.dia_semana >= EXTRACT(DOW FROM to_timestamp(to_char(cast(:entrada as timestamp),'YYYY-MM-DD HH24:MI'),'YYYY-MM-DD HH24:MI')) + 1 AND  \n"
+                + "  t_horario_item.dia_semana <= EXTRACT(DOW FROM  to_timestamp(to_char(cast(:saida as timestamp),'YYYY-MM-DD HH24:MI'),'YYYY-MM-DD HH24:MI')) + 1) AND\n"
+                + "(\n"
+                + "  (to_timestamp(to_char(entrada_1,'HH24:MI'),'HH24:MI') > to_timestamp(to_char(cast(:entrada as timestamp),'HH24:MI'),'HH24:MI') AND \n"
+                + "  to_timestamp(to_char(entrada_1,'HH24:MI'),'HH24:MI') < to_timestamp(to_char(cast(:saida as timestamp),'HH24:MI'),'HH24:MI')) \n"
+                + "  OR\n"
+                + "  (to_timestamp(to_char(entrada_2,'HH24:MI'),'HH24:MI') > to_timestamp(to_char(cast(:entrada as timestamp),'HH24:MI'),'HH24:MI') AND \n"
+                + "  to_timestamp(to_char(entrada_2,'HH24:MI'),'HH24:MI') < to_timestamp(to_char(cast(:saida as timestamp),'HH24:MI'),'HH24:MI')) \n"
+                + "  OR\n"
+                + "  (to_timestamp(to_char(saida_1,'HH24:MI'),'HH24:MI') > to_timestamp(to_char(cast(:entrada as timestamp),'HH24:MI'),'HH24:MI') AND \n"
+                + "  to_timestamp(to_char(saida_1,'HH24:MI'),'HH24:MI') < to_timestamp(to_char(cast(:saida as timestamp),'HH24:MI'),'HH24:MI')) \n"
+                + "  OR\n"
+                + "  (to_timestamp(to_char(saida_2,'HH24:MI'),'HH24:MI') > to_timestamp(to_char(cast(:entrada as timestamp),'HH24:MI'),'HH24:MI') AND \n"
+                + "  to_timestamp(to_char(saida_2,'HH24:MI'),'HH24:MI') < to_timestamp(to_char(cast(:saida as timestamp),'HH24:MI'),'HH24:MI')) \n"
+                + ")\n"
+                + "  AND \n"
+                + "  t_funcionario_horario.regime_fk in (4,5,7) \n"
+                + "  AND t_funcionario_horario.funcionario_horario_pk = :funcionarioHorario  limit 1";
+
+        try {
+            query = getBusiness().getSesaDao().getEntityManager().
+                    createNativeQuery(consulta);
+
+            query.setParameter("funcionarioHorario", funcionarioHorario);
+            query.setParameter("entrada", entrada);
+            query.setParameter("saida", saida);
+
+            lista = query.getResultList();
+
+        } catch (Exception ex) {
+            getBusiness().addErrorMessage(null, "Não foi possível criar a escala do usuário: " + sdf.format(entrada) + " - " + sdf.format(saida));
+            getBusiness().lancarException();
+        }
+
+        if (lista != null && lista.size() > 0) {
+            return (Object[]) lista.get(0);
+        }
+
+        return null;
+    }
+
+    @PUT
+    @Override
+    @Consumes({"application/json"})
+    @Produces({"application/json"})
+    public EscalaItem edit(EscalaItem entity) {
+        return super.edit(entity);
+    }
+
+    
+
+    @GET
+    @Path("{id}")
+    @Produces({"application/json"})
+    public EscalaItem find(@PathParam("id") BigInteger id) throws SQLException {
+        Query query = getBusiness().getSesaDao().getEntityManager().
+                createQuery("FROM EscalaItem where id=:id");
+
+        query.setParameter("id", id);
+
+        EscalaItem escalaItem = (EscalaItem) query.getSingleResult();
+
+        return escalaItem;
+    }
+
+}

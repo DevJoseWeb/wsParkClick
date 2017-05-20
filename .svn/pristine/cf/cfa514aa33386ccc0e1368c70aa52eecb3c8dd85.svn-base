@@ -1,0 +1,59 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+package br.gov.ce.saude.ponto.vo;
+
+import br.gov.ce.saude.ponto.entidade.EscalaItem;
+import br.gov.ce.saude.ponto.entidade.FuncionarioHorario;
+import java.io.Serializable;
+import java.math.BigInteger;
+import java.util.List;
+
+/**
+ *
+ * @author esmayktillesse
+ */
+public class EscalaItemVariosDiasVO implements Serializable {
+    
+    private static final long serialVersionUID = -1347051722478728625L;
+    
+    private List<FuncionarioHorarioVO> funcionarios;
+    private BigInteger legendaFk;
+    private BigInteger escalaFk;
+
+    public EscalaItemVariosDiasVO() {
+    }
+
+    public EscalaItemVariosDiasVO(List<FuncionarioHorarioVO> funcionarios, BigInteger legendaFk, BigInteger escalaFk) {
+        this.funcionarios = funcionarios;
+        this.legendaFk = legendaFk;
+        this.escalaFk = escalaFk;
+    }
+
+    public List<FuncionarioHorarioVO> getFuncionarios() {
+        return funcionarios;
+    }
+
+    public void setFuncionarios(List<FuncionarioHorarioVO> funcionarios) {
+        this.funcionarios = funcionarios;
+    }
+
+
+    public BigInteger getLegendaFk() {
+        return legendaFk;
+    }
+
+    public void setLegendaFk(BigInteger legendaFk) {
+        this.legendaFk = legendaFk;
+    }
+
+    public BigInteger getEscalaFk() {
+        return escalaFk;
+    }
+
+    public void setEscalaFk(BigInteger escalaFk) {
+        this.escalaFk = escalaFk;
+    }
+}
